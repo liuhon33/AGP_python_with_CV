@@ -2,3 +2,8 @@
 .DS_Store
 .DS_Store
  Feature_Cohorts
+Results/
+*.err
+*.out
+*.txt
+my_sklearn_env/

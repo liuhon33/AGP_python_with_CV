@@ -7,11 +7,12 @@ Created on Tue Apr  2 12:17:44 2019
 """
 
 import os
+import sys  # <-- ADDED FOR JOB ARRAY
 import numpy as np 
 import pandas as pd 
 from sklearn.utils import shuffle
 import matplotlib.pyplot as plt
-import seaborn as sns        
+import seaborn as sns 
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -21,20 +22,24 @@ from xgboost import XGBClassifier
 from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_curve, auc, accuracy_score, matthews_corrcoef
-from scipy import interp
+# from scipy import interp
+
+# --- This suppresses the warning, but fixing the code is better ---
+# import warnings
+# warnings.filterwarnings("ignore", category=FutureWarning)
+# -----------------------------------------------------------------
 
 
-
-metadata_df = pd.read_csv("/Users/jacksklar/Desktop/AGPMicrobiomeHostPredictions/Data/Cleaned_data/AGP_Metadata.csv", index_col = 0)
-otu_df = pd.read_csv("/Users/jacksklar/Desktop/AGPMicrobiomeHostPredictions/Data/Cleaned_data/AGP_Otu_Data.csv", index_col = 0)
+metadata_df = pd.read_csv("./Data/Cleaned_data/AGP_Metadata.csv", index_col = 0)
+otu_df = pd.read_csv("./Data/Cleaned_data/AGP_Otu_Data.csv", index_col = 0)
 otu_df = otu_df.loc[metadata_df.index, :]
-taxa_df = pd.read_csv("/Users/jacksklar/Desktop/AGPMicrobiomeHostPredictions/Data/Raw_Data/taxa_md5.xls", sep = "\t", index_col = 0)
+taxa_df = pd.read_csv("./Data/Raw_Data/taxa_md5.xls", sep = "\t", index_col = 0)
 taxa_df = taxa_df[taxa_df.index.isin(otu_df.columns)]
 taxa_df = taxa_df.replace(np.nan, 'Unknown', regex=True)
 
 ##info for plotting questionnaire cohorts
-feature_info = pd.read_csv("/Users/jacksklar/Desktop/AGPMicrobiomeHostPredictions/Data/Cleaned_data/feature_info.csv", index_col = 0)
-frequency_info = pd.read_csv("/Users/jacksklar/Desktop/AGPMicrobiomeHostPredictions/Data/Cleaned_data/frequency_feature_info.csv", index_col = 0)
+feature_info = pd.read_csv("./Data/Cleaned_data/feature_info.csv", index_col = 0)
+frequency_info = pd.read_csv("./Data/Cleaned_data/frequency_feature_info.csv", index_col = 0)
 
 
 ##OTU abundance converted to relative abundance, removal of OTUs with mean relative abundance bellow 0.01% 
@@ -62,11 +67,11 @@ def empiricalPVal(statistic, null_dist):
 
 class modelResults:
     def __init__(self):
-        self.tprs = []                    
-        self.aucs = []                         
+        self.tprs = []                      
+        self.aucs = []                          
         self.importances = []
-        self.accuracy = []                         
-        self.matthews = []           
+        self.accuracy = []                          
+        self.matthews = []        
         self.shuffled_accuracy = []
         self.shuffled_aucs = [] 
         self.shuffled_matthews = [] 
@@ -145,8 +150,8 @@ class AGPCohortClassification:
         self.GroupCV(X, y)
 
     ## Preprocess questionnaire matched-pair cohort for classification
-    ##      - taxonomic relative abundance data is log-transformed with a pseudocount of 1
-    ##      - abundance data is not normally distributed so this transformation makes it more suitable for classification
+    ##       - taxonomic relative abundance data is log-transformed with a pseudocount of 1
+    ##       - abundance data is not normally distributed so this transformation makes it more suitable for classification
     def buildDataSubset(self):
         X = otu_df.loc[self.cohort.index,:].astype(float).values
         y = self.cohort["target"].astype(float)
@@ -157,12 +162,12 @@ class AGPCohortClassification:
         if len(X) > max_samples:
             X = X[:max_samples,:]
             y = y[:max_samples]
-        return X, y        
+        return X, y       
     
     ## 25 iteration 4-fold cross validation
-    ##      - pairs must be in consecutive rows, are kept grouped between training and test to maintain this balance
+    ##       - pairs must be in consecutive rows, are kept grouped between training and test to maintain this balance
     ## 3 standard machine learning classifiers: random forests, ridge-logistic regression, SVM
-    ##      - classifiers chosen for performing well with high-dimensional, low sample data that is noisy, and zero-inflated
+    ##       - classifiers chosen for performing well with high-dimensional, low sample data that is noisy, and zero-inflated
     ## Target variable shuffled and model trained over same split of data to assess ability for classifier to find signal in noise
     ## Shuffled performance used to obtain significance non-shuffled standard classifiers
     def GroupCV(self, X, y):
@@ -181,12 +186,18 @@ class AGPCohortClassification:
             ##XGBoost:
             #self.trainModel(X_train, X_test, y[train], y[test], False, self.xgb)
             #self.trainModel(X_train, X_test, y_shuffled[train], y_shuffled[test], True, self.xgb)
+            
+            # =================================================================
+            # === CODE FIX: Changed y[train] to y.iloc[train] to fix warning ===
+            # =================================================================
+            
             ##RANDOM FOREST:
-            self.trainModel(X_train, X_test, y[train], y[test], False, self.rf)
-            self.trainModel(X_train, X_test, y_shuffled[train], y_shuffled[test], True, self.rf)
+            self.trainModel(X_train, X_test, y.iloc[train], y.iloc[test], False, self.rf)
+            self.trainModel(X_train, X_test, y_shuffled.iloc[train], y_shuffled.iloc[test], True, self.rf)
             #RIDGE LOGISTIC REGRESSION:
-            self.trainModel(X_train, X_test, y[train], y[test], False, self.lasso)
-            self.trainModel(X_train, X_test, y_shuffled[train], y_shuffled[test], True, self.lasso)
+            self.trainModel(X_train, X_test, y.iloc[train], y.iloc[test], False, self.lasso)
+            self.trainModel(X_train, X_test, y_shuffled.iloc[train], y_shuffled.iloc[test], True, self.lasso)
+            
         if self.plot:
             self.rf.plotROC(self.feature_name, self.save, self.title, "rf")
             #self.xgb.plotROC(self.feature_name, self.save, self.title, "xgb")
@@ -197,17 +208,17 @@ class AGPCohortClassification:
     ##returns performance metrics, feature importances, saves to classifier object
     def trainModel(self, X_train, X_test, y_train, y_test, shuffle, model_type):
         #if model_type == self.xgb:
-        #    alg = XGBClassifier(booster="gbtree", eta=0.3, subsample=0.7, verbosity=0, random_state=RANDOM_STATE_XGB)
-        #    alg.fit(X_train, y_train)
-        #    imp = alg.feature_importances_    
+        #     alg = XGBClassifier(booster="gbtree", eta=0.3, subsample=0.7, verbosity=0, random_state=RANDOM_STATE_XGB)
+        #     alg.fit(X_train, y_train)
+        #     imp = alg.feature_importances_     
         if model_type == self.rf:        
             alg = RandomForestClassifier()
             alg = RandomForestClassifier(n_estimators=512, min_samples_leaf=1, n_jobs=-1, bootstrap=True, 
                                          max_samples=0.7, class_weight='balanced', random_state=RANDOM_STATE_RF)
             alg.fit(X_train, y_train)
-            imp = alg.feature_importances_        
+            imp = alg.feature_importances_       
         if model_type == self.lasso:        
-            alg = LogisticRegression(solver='liblinear', penalty="l2", class_weight='balanced', random_state=RANDOM_STATE_LR)    
+            alg = LogisticRegression(solver='liblinear', penalty="l2", class_weight='balanced', random_state=RANDOM_STATE_LR)   
             alg.fit(X_train, y_train)
             imp = alg.coef_[0,:]
         y_pred = alg.predict_proba(X_test)[:,1]
@@ -231,7 +242,7 @@ class AGPCohortClassification:
             model_type.tprs.append(np.interp(model_type.mean_fpr, fpr, tpr)) 
             model_type.tprs[-1][0] = 0.0
             model_type.aucs.append(roc_auc)
-            model_type.accuracy.append(acc)                                               
+            model_type.accuracy.append(acc)                                    
             model_type.matthews.append(matthew)      
 
 
@@ -310,6 +321,11 @@ def FreqPredPipeline(save_path, dir_path):
     #xgb_FR = QuestionnaireResults(num_iterations, col_names, "svm", save_path)
     rf_FR = QuestionnaireResults(num_iterations, col_names, "rf", save_path)
     lasso_FR = QuestionnaireResults(num_iterations, col_names, "lasso", save_path)
+    
+    # This line was present in your original script at the end
+    # It should be defined *before* the loop
+    frequency_list = os.listdir(dir_path) 
+    
     for feature in frequency_list:
         feature_name = feature.split(".")[0]
         print(feature_name)
@@ -330,64 +346,79 @@ def FreqPredPipeline(save_path, dir_path):
     lasso_FR.SaveModelDF()
 
     
+    
+#%%
+# =============================================================================
+# SCRIPT EXECUTION BLOCK
+# This section defines the input/output paths and runs the analysis pipelines
+# based on the SLURM_ARRAY_TASK_ID.
+# =============================================================================
+
+if __name__ == "__main__":
+
+    # Check if a task ID was provided from the sbatch script
+    if len(sys.argv) < 2:
+        print("ERROR: No task ID provided. Run as: python script.py <task_id>")
+        print("Running all tasks sequentially as a fallback.")
+        task_id = "all" # Fallback to running everything
+    else:
+        # Get the task ID (1, 2, 3, or 4)
+        task_id = sys.argv[1]
+
+    col_names = otu_df.columns
+
+    # --- Create Output Directories if They Don't Exist ---
+    print("--- Setting up output directories ---")
+    os.makedirs("Results/Phase_II_Results/binary_results/AUCs", exist_ok=True)
+    os.makedirs("Results/Phase_II_Results/binary_results/Importances", exist_ok=True)
+    os.makedirs("Results/Phase_II_Results/binary_results/ROCs", exist_ok=True)
+
+    os.makedirs("Results/Phase_II_Results_disease_removed/binary_results/AUCs", exist_ok=True)
+    os.makedirs("Results/Phase_II_Results_disease_removed/binary_results/Importances", exist_ok=True)
+    os.makedirs("Results/Phase_II_Results_disease_removed/binary_results/ROCs", exist_ok=True)
+
+    os.makedirs("Results/Phase_II_Results/frequency_results/AUCs", exist_ok=True)
+    os.makedirs("Results/Phase_II_Results/frequency_results/Importances", exist_ok=True)
+    os.makedirs("Results/Phase_II_Results/frequency_results/ROCs", exist_ok=True)
+
+    os.makedirs("Results/Phase_II_Results_disease_removed/frequency_results/AUCs", exist_ok=True)
+    os.makedirs("Results/Phase_II_Results_disease_removed/frequency_results/Importances", exist_ok=True)
+    os.makedirs("Results/Phase_II_Results_disease_removed/frequency_results/ROCs", exist_ok=True)
+
+    
+    # --- Run one analysis block based on the task ID ---
+
+    if task_id == '1' or task_id == 'all':
+        # 1. Binary Questionnaire Variable Cohort Classification (All subjects)
+        print("\n--- RUNNING TASK 1: Phase II Binary Cohorts (All Subjects) ---")
+        save_path = "Results/Phase_II_Results/binary_results/"
+        dir_path = "Feature_Cohorts/Phase_II_Cohorts/binary_cohorts/"
+        PredPipeline(save_path, dir_path)
+
+    if task_id == '2' or task_id == 'all':
+        # 2. Binary Questionnaire Variable Cohort Classification (Disease Removed)
+        print("\n--- RUNNING TASK 2: Phase II Binary Cohorts (Disease Removed) ---")
+        save_path = "Results/Phase_II_Results_disease_removed/binary_results/"
+        dir_path = "Feature_Cohorts/Phase_II_Cohorts_disease_removed/binary_cohorts/"
+        PredPipeline(save_path, dir_path)
+
+    if task_id == '3' or task_id == 'all':
+        # 3. Frequency Groups compared to cohort of "never" participants (All subjects)
+        print("\n--- RUNNING TASK 3: Phase II Frequency Cohorts (All Subjects) ---")
+        save_path = "Results/Phase_II_Results/frequency_results/"
+        dir_path = "Feature_Cohorts/Phase_II_Cohorts/frequency_cohorts/"
+        # frequency_list = os.listdir(dir_path) # This is handled inside the func
+        FreqPredPipeline(save_path, dir_path)
+
+    if task_id == '4' or task_id == 'all':
+        # 4. Frequency Groups compared to cohort of "never" participants (Disease Removed)
+        print("\n--- RUNNING TASK 4: Phase II Frequency Cohorts (Disease Removed) ---")
+        save_path = "Results/Phase_II_Results_disease_removed/frequency_results/"
+        dir_path = "Feature_Cohorts/Phase_II_Cohorts_disease_removed/frequency_cohorts/"
+        # frequency_list = os.listdir(dir_path) # This is handled inside the func
+        FreqPredPipeline(save_path, dir_path)
+    
+    if task_id not in ['1', '2', '3', '4', 'all']:
+        print(f"ERROR: Unknown task ID '{task_id}'. Expected 1-4 or 'all'.")
         
-#%%
-    
-dir_path = "/Users/jacksklar/Desktop/AGPMicrobiomeHostPredictions/"
-col_names = otu_df.columns
-
-dir_path = "/Users/jacksklar/Desktop/newcohortsforrf/alc_matched/"
-save_path = "/Users/jacksklar/Desktop/New_Cohort_Results/alc_matched/"
-feature_list = os.listdir(dir_path)
-PredPipeline(save_path, dir_path)
-
-dir_path = "/Users/jacksklar/Desktop/newcohortsforrf/cohorts_reformatted/"
-save_path = "/Users/jacksklar/Desktop/New_Cohort_Results/cohorts_reformatted/"
-feature_list = os.listdir(dir_path)
-PredPipeline(save_path, dir_path)
-
-
-dir_path = "/Users/jacksklar/Desktop/newcohortsforrf/cohorts_reformatted-1/"
-save_path = "/Users/jacksklar/Desktop/New_Cohort_Results/cohorts_reformatted/"
-feature_list = os.listdir(dir_path)
-PredPipeline(save_path, dir_path)
-    
-#%%
-
-
-#excluded Groups
-save_path = dir_path + "Results/Phase_I_Results_xgb/"
-dir_path = dir_path + "Feature_Cohorts/Phase_I_Cohorts/"
-feature_list = os.listdir(dir_path)
-PredPipeline(save_path, dir_path)
-
-
-#Binary Questionnaire Variable Cohort Classification
-save_path = dir_path + "Results/Phase_II_Results/binary_results/"
-dir_path = dir_path + "Feature_Cohorts/Phase_II_Cohorts/binary_cohorts/"
-feature_list = os.listdir(dir_path)
-PredPipeline(save_path, dir_path)
-
-
-#Binary Questionnaire Variable Cohort Classification
-save_path = dir_path + "Results/Phase_II_Results_disease_removed/binary_results/"
-dir_path = dir_path + "Feature_Cohorts/Phase_II_Cohorts_disease_removed/binary_cohorts/"
-feature_list = os.listdir(dir_path)
-PredPipeline(save_path, dir_path)
-
-
-##Frequency Groups compared to cohort of "never" participants
-save_path = dir_path + "Results/Phase_II_Results_disease_removed/frequency_results/"
-dir_path = dir_path + "Feature_Cohorts/Phase_II_Cohorts_disease_removed/frequency_cohorts/"
-frequency_list = os.listdir(dir_path)
-FreqPredPipeline(save_path, dir_path)
-
-
-##Frequency Groups compared to cohort of "never" participants
-save_path = dir_path + "Results/Phase_II_Results/frequency_results/"
-dir_path = dir_path + "Feature_Cohorts/Phase_II_Cohorts/frequency_cohorts/"
-frequency_list = os.listdir(dir_path)
-FreqPredPipeline(save_path, dir_path)
-
-
-
+    print(f"\n--- All analyses complete for task {task_id}. ---")
