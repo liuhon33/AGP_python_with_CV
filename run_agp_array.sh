@@ -15,7 +15,7 @@
 
 # --- Account and Notifications ---
 #SBATCH --mail-type=FAIL,END
-#SBATCH --mail-user=your.email@domain.com # <-- IMPORTANT: Change this
+#SBATCH --mail-user=hongrui.liu@mail.utoronto.ca # <-- IMPORTANT: Change this
 
 # --- Setup ---
 echo "--- Loading environment for job $SLURM_ARRAY_JOB_ID, task $SLURM_ARRAY_TASK_ID ---"

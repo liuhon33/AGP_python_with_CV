@@ -340,7 +340,7 @@ def FreqPredPipeline(save_path, dir_path):
         CohClass.classifyFeature()
         #xgb_FR.AppendModelRes(CohClass.xgb_FR, cohort_n)
         rf_FR.AppendModelRes(CohClass.rf, cohort_n, feature_name)
-    lasso_FR.AppendModelRes(CohClass.lasso, cohort_n, feature_name)
+        lasso_FR.AppendModelRes(CohClass.lasso, cohort_n, feature_name)
     #xgb_FR.SaveModelDF()
     rf_FR.SaveModelDF()
     lasso_FR.SaveModelDF()
