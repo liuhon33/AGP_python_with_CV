@@ -7,3 +7,4 @@ Results/
 *.out
 *.txt
 my_sklearn_env/
+*.pdf
