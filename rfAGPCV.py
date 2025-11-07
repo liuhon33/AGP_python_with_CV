@@ -16,7 +16,7 @@ import seaborn as sns
 # --- 1. Configuration ---
 # File paths
 otu_file_path = "./Data/Cleaned_data/AGP_Otu_Data.csv"
-metadata_file_path = "./Data/Cleaned_data/AGP_Metadata.csv"
+metadata_file_path = "./Data/Cleaned_data/processed_metadata.csv"
 metadata_index_col = 'sample_name'
 otu_index_col = 0
 
@@ -29,9 +29,10 @@ n_pcs_to_predict = 5
 
 # RF Hyperparameter Grid
 param_grid = {
-    'n_estimators': [50, 100],
+    'n_estimators': [100, 200, 300],
     'max_features': ['sqrt', 'log2'],
-    'min_samples_leaf': [5, 10]
+    'min_samples_leaf': [5, 10, 20],
+    'max_depth': [None, 10, 20]
 }
 
 # Set output directory
