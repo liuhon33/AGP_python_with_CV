@@ -5,7 +5,7 @@ from sklearn.model_selection import KFold, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.decomposition import PCA
-from sklearn.linear_model import LinearRegression # <-- IMPORTED
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 from tqdm.notebook import tqdm # Use 'tqdm' for regular terminal
 import os
@@ -25,7 +25,8 @@ outer_cv_splits = 5
 inner_cv_splits = 3
 random_state_cv = 42
 abundance_threshold = 0.0001
-n_pcs_to_predict = 5
+n_pcs_to_predict = 5    # How many PCs to use as targets for the RF models
+n_pcs_to_explore = 10   # How many PCs to calculate for the exploratory plots
 
 # RF Hyperparameter Grid
 param_grid = {
@@ -70,31 +71,89 @@ if X_metadata.isnull().values.any():
     X_metadata = X_metadata.fillna(X_metadata.median())
 print(f"Using {X_metadata.shape[1]} numeric metadata features as predictors.")
 
-# --- 3. PCA on Microbiome Data (Y-base) ---
-print("\n--- Performing PCA on full log-transformed OTU data ---")
+# --- 3. Exploratory PCA on Microbiome Data (Y-base) ---
+print(f"\n--- 3. Performing PCA on {otu_df_filtered.shape[1]} log-transformed OTUs ---")
 scaler_otu = StandardScaler()
 otu_scaled = scaler_otu.fit_transform(otu_df_log_transformed)
 
-pca = PCA(n_components=n_pcs_to_predict)
-Y_pcs = pca.fit_transform(otu_scaled)
+# Run PCA to get the top components for exploration
+pca_otu_explore = PCA(n_components=n_pcs_to_explore)
+# `pca_scores` are the coordinates of each sample
+pca_otu_scores = pca_otu_explore.fit_transform(otu_scaled)
+# `pca_loadings` show how much each OTU contributes to each PC
+pca_otu_loadings = pca_otu_explore.components_
+# `explained_variance` shows the % of variance each PC captures
+otu_explained_variance = pca_otu_explore.explained_variance_ratio_
 
-print("Explained Variance Ratio by PC:")
-for i, var in enumerate(pca.explained_variance_ratio_):
-    print(f"  PC{i+1}: {var:.4f} ({(var*100):.2f}%)")
-print(f"  Total for {n_pcs_to_predict} PCs: {np.sum(pca.explained_variance_ratio_):.4f} ({(np.sum(pca.explained_variance_ratio_)*100):.2f}%)")
+print("Exploratory OTU PCA complete.")
+print(f"Variance explained by first {n_pcs_to_explore} OTU components:")
+for i, var in enumerate(otu_explained_variance):
+    print(f"  PC{i+1}: {var*100:.2f}%")
 
-# --- 4. Scale Metadata Predictors (X) ---
+# --- 4. Generate Exploratory OTU PCA Plots ---
+print("\n--- 4. Generating Exploratory OTU PCA Plots ---")
+
+# Plot 1: Scree Plot (Explained Variance)
+plt.figure(figsize=(8, 5))
+sns.barplot(x=[f'PC{i+1}' for i in range(n_pcs_to_explore)], 
+            y=otu_explained_variance * 100, 
+            color="steelblue")
+plt.title('Scree Plot - Variance Explained by OTU PCs')
+plt.ylabel('Percent Variance Explained')
+plt.xlabel('Principal Component')
+plt.tight_layout()
+plt.savefig(os.path.join(output_dir, "otu_pca_scree_plot.pdf"))
+print(f"OTU Scree plot saved to '{output_dir}otu_pca_scree_plot.pdf'")
+plt.close()
+
+# Plot 2: Scores Plot (Samples)
+pca_otu_scores_df = pd.DataFrame(pca_otu_scores, columns=[f'PC{i+1}' for i in range(n_pcs_to_explore)])
+plt.figure(figsize=(8, 7))
+sns.scatterplot(data=pca_otu_scores_df, x='PC1', y='PC2', alpha=0.3)
+plt.title('OTU PCA Scores Plot (Samples in PC Space)')
+plt.xlabel(f'PC1 ({otu_explained_variance[0]*100:.2f}%)')
+plt.ylabel(f'PC2 ({otu_explained_variance[1]*100:.2f}%)')
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.tight_layout()
+plt.savefig(os.path.join(output_dir, "otu_pca_scores_plot.pdf"))
+print(f"OTU Scores plot saved to '{output_dir}otu_pca_scores_plot.pdf'")
+plt.close()
+
+# Plot 3: Loadings Bar Plot (Top Features for PC1)
+# (A heatmap of 819 OTUs is unreadable, so we plot the most important ones)
+loadings_pc1 = pd.Series(pca_otu_loadings[0, :], index=otu_df_filtered.columns)
+# Get top 10 positive and top 10 negative loadings
+top_loadings = pd.concat([loadings_pc1.nlargest(10), loadings_pc1.nsmallest(10)]).sort_values()
+
+plt.figure(figsize=(10, 8))
+sns.barplot(x=top_loadings.values, y=top_loadings.index, orient='h', palette='vlag')
+plt.title('OTU Loadings for PC1 (Top 10 Positive & Negative Drivers)')
+plt.xlabel('Loading Value')
+plt.ylabel('OTU Identifier')
+plt.tight_layout()
+plt.savefig(os.path.join(output_dir, "otu_pca_pc1_loadings_plot.pdf"))
+print(f"OTU PC1 Loadings plot saved to '{output_dir}otu_pca_pc1_loadings_plot.pdf'")
+plt.close()
+
+# --- 5. Prepare Y Targets for Regression ---
+# Slice the scores from the PCA we already ran
+Y_pcs = pca_otu_scores[:, :n_pcs_to_predict]
+print(f"\nUsing first {n_pcs_to_predict} PCs as targets for regression.")
+
+# --- 6. Scale Metadata Predictors (X) ---
+print("\n--- 6. Scaling full metadata matrix (Our X Predictors) ---")
 scaler_meta = StandardScaler()
 X_meta_scaled = scaler_meta.fit_transform(X_metadata)
 
-# --- 5. Run Nested Cross-Validation for each PC ---
-print(f"\n--- Running {outer_cv_splits}-Fold Nested CV for {n_pcs_to_predict} PCs ---")
+# --- 7. Run Nested Cross-Validation for each PC ---
+print(f"\n--- 7. Running {outer_cv_splits}-Fold Nested CV for {n_pcs_to_predict} Microbiome PCs ---")
+print("(This is the time-consuming step. You can comment out from here.)")
 
 nested_cv_results = {} 
 
 for i in range(n_pcs_to_predict):
     pc_name = f'PC{i+1}'
-    y_target = Y_pcs[:, i] 
+    y_target = Y_pcs[:, i] # Target is the i-th OTU PC
     print(f"\n... Processing {pc_name} ...")
     start_time = time.time()
     
@@ -141,8 +200,8 @@ for i in range(n_pcs_to_predict):
     end_time = time.time()
     print(f"  {pc_name} Average R^2: {nested_cv_results[pc_name]['avg_r2']:.4f} (took {end_time - start_time:.1f} seconds)")
 
-# --- 6. Display Final Results ---
-print("\n--- Final Nested Cross-Validation Results ---")
+# --- 8. Display Final Results ---
+print("\n--- 8. Final Nested Cross-Validation Results ---")
 print("Average R^2 (Predictability of Microbiome PC from Metadata):")
 avg_scores = {pc: results['avg_r2'] for pc, results in nested_cv_results.items()}
 results_df = pd.DataFrame.from_dict(avg_scores, orient='index', columns=['Nested CV R^2'])
@@ -152,8 +211,8 @@ results_df.to_csv(os.path.join(output_dir, "rf_pcr_nested_cv_results.csv"))
 print(f"\nFull results saved to '{output_dir}rf_pcr_nested_cv_results.csv'")
 
 
-# --- 7. MODIFIED: Generate Plot for Best Performing PC with Actual Fit Line ---
-print("\n--- Generating Plot for Best PC ---")
+# --- 9. Generate Plot for Best Performing PC with Actual Fit Line ---
+print("\n--- 9. Generating Plot for Best PC ---")
 
 # Find the best PC
 best_pc_name = max(avg_scores, key=avg_scores.get)
@@ -162,30 +221,19 @@ true_values = nested_cv_results[best_pc_name]['y_true']
 pred_values = nested_cv_results[best_pc_name]['y_pred']
 
 # --- Fit a linear regression model to the plot data ---
-# Reshape data for sklearn
 true_values_reshaped = true_values.reshape(-1, 1)
-
-# Create and fit the linear model
 line_model = LinearRegression()
 line_model.fit(true_values_reshaped, pred_values)
-
-# Create x-values for the line
 min_val = true_values.min()
 max_val = true_values.max()
 line_x = np.array([min_val, max_val]).reshape(-1, 1)
-
-# Predict y-values for the line
 line_y = line_model.predict(line_x)
-
-# Get the R^2 score of this linear fit
 line_r2 = line_model.score(true_values_reshaped, pred_values)
 # ---
 
 # Create the scatter plot
 plt.figure(figsize=(7, 7))
 plt.scatter(true_values, pred_values, alpha=0.5, label="Out-of-Fold Predictions")
-
-# Plot the new "Actual Fit" line
 plt.plot(line_x.flatten(), line_y, '--', color='red', lw=2, 
          label=f"Actual Fit ($R^2$ = {line_r2:.3f})")
 

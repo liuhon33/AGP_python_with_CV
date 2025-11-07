@@ -13,7 +13,7 @@ import os # <-- IMPORT OS for file paths
 # --- 1. Configuration ---
 # File paths
 otu_file_path = "./Data/Cleaned_data/AGP_Otu_Data.csv"
-metadata_file_path = "./Data/Cleaned_data/AGP_Metadata.csv"
+metadata_file_path = "./Data/Cleaned_data/processed_metadata.csv"
 metadata_index_col = 'sample_name'
 otu_index_col = 0
 
@@ -123,7 +123,7 @@ plt.tight_layout()
 plt.savefig(os.path.join(output_dir, "metadata_pca_loadings_heatmap.pdf"))
 print(f"Loadings heatmap saved to '{output_dir}metadata_pca_loadings_heatmap.pdf'")
 plt.close()
-
+'''
 # --- 5. Run Cross-Validated PCR (PCA + Ridge) with Alpha Tuning ---
 # (This is your original Step 3, now renamed)
 print(f"\n--- 5. Running {n_splits_cv}-Fold CV PCR with alpha tuning ---")
@@ -242,3 +242,4 @@ else:
     print("Could not generate scatter plot: No OTUs found after filtering or all had zero variance.")
 
 print("\nAnalysis complete.")
+'''
