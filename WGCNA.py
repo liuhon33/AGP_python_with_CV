@@ -46,7 +46,8 @@ param_grid = {
 # Output directory
 output_dir = "./RF_on_ME_Results/"
 os.makedirs(output_dir, exist_ok=True)
-
+fig_dir = Path(output_dir) / "wgcna_figs"
+fig_dir.mkdir(parents=True, exist_ok=True)
 
 # --- 2. Load and Prepare Data ---
 print("--- Loading data ---")
@@ -79,7 +80,6 @@ if X_metadata.isnull().values.any():
     X_metadata = X_metadata.fillna(X_metadata.median())
 print(f"Using {X_metadata.shape[1]} numeric metadata features as predictors.")
 
-
 # --- 3. Run WGCNA to Get Module Labels (PyWGCNA) ---
 print("\n--- 3. Running PyWGCNA Module Detection ---")
 print("Converting data to AnnData format...")
@@ -89,7 +89,7 @@ adata = ad.AnnData(
     var=pd.DataFrame(index=otu_df_log_transformed.columns)
 )
 
-# Initialize WGCNA object (microbiome-friendly defaults)
+# Initialize WGCNA object
 pyWGCNA_obj = PyWGCNA.WGCNA(
     anndata=adata,
     species='unknown',         # only used for enrichment; placeholder is fine
@@ -127,6 +127,108 @@ n_modules_incl_grey = len(modules) if not hasattr(modules, "size") else modules.
 print(f"Module detection complete. Found {n_modules_incl_grey} modules (including 'grey').")
 print(module_labels.value_counts())
 
+# ================================
+# 4A. WGCNA VISUALS (NEW)
+# ================================
+print("\n--- 4A. Creating WGCNA visualizations ---")
+
+# 4A-1 Soft-threshold (scale-free) plots
+try:
+    sft = pyWGCNA_obj.sft  # pandas DataFrame expected
+    if sft is not None and isinstance(sft, pd.DataFrame):
+        # R^2 vs power
+        plt.figure(figsize=(6,4))
+        sns.lineplot(data=sft, x='Power', y='SFT.R.sq', marker='o')
+        plt.axhline(pyWGCNA_obj.RsquaredCut, ls='--', alpha=0.7)
+        plt.title('Scale-Free Topology Fit (R²) vs Power')
+        plt.tight_layout()
+        plt.savefig(fig_dir / "sft_R2_vs_power.png", dpi=200)
+        plt.close()
+
+        # Mean connectivity vs power
+        plt.figure(figsize=(6,4))
+        sns.lineplot(data=sft, x='Power', y='mean(k)', marker='o')
+        plt.title('Mean Connectivity vs Power')
+        plt.tight_layout()
+        plt.savefig(fig_dir / "sft_mean_connectivity_vs_power.png", dpi=200)
+        plt.close()
+except Exception as e:
+    print(f"[warn] Soft-threshold plots skipped: {e}")
+
+# 4A-2 Gene dendrogram with module colors
+try:
+    from scipy.cluster.hierarchy import dendrogram
+    geneTree = pyWGCNA_obj.geneTree  # linkage matrix (ndarray)
+    if geneTree is not None:
+        plt.figure(figsize=(12, 4))
+        dendro = dendrogram(geneTree, no_labels=True, color_threshold=0)
+        plt.title('Gene Dendrogram')
+        plt.tight_layout()
+        plt.savefig(fig_dir / "gene_dendrogram.png", dpi=200)
+        plt.close()
+
+        # Color bar under dendrogram
+        # Need leaves order to map colors
+        leaves = dendro['leaves']
+        ordered_cols = pyWGCNA_obj.datExpr.var.index[leaves]
+        ordered_colors = module_labels.loc[ordered_cols].values
+        # Map color strings to hex where possible
+        unique_cols = pd.unique(ordered_colors)
+        color_map = {c:c for c in unique_cols}  # already CSS color names
+        color_bar = np.array([color_map[c] for c in ordered_colors])
+        fig, ax = plt.subplots(figsize=(12,0.3))
+        ax.imshow(color_bar.reshape(1, -1), aspect='auto')
+        ax.set_yticks([])
+        ax.set_xticks([])
+        ax.set_title('Module Colors (ordered)')
+        plt.tight_layout()
+        plt.savefig(fig_dir / "gene_dendrogram_module_colors.png", dpi=200)
+        plt.close()
+except Exception as e:
+    print(f"[warn] Dendrogram plot skipped: {e}")
+
+# 4A-3 Module size barplot
+try:
+    vc = module_labels.value_counts().rename_axis('module').reset_index(name='size')
+    plt.figure(figsize=(8,4))
+    sns.barplot(data=vc, x='module', y='size')
+    plt.title('Module Sizes (including grey)')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.savefig(fig_dir / "module_sizes.png", dpi=200)
+    plt.close()
+except Exception as e:
+    print(f"[warn] Module size plot skipped: {e}")
+
+# 4A-4 TOM heatmap (subset to avoid massive matrices)
+try:
+    # Use adjacency/TOM for a subset of high-connectivity genes for readability
+    # Get intramodular connectivity or fallback to degree via adjacency sum
+    # We'll compute adjacency for the subset of columns
+    expr = pyWGCNA_obj.datExpr.to_df()
+    # choose up to 200 features: top 25 per largest 4 non-grey modules (or fallback)
+    non_grey = module_labels[module_labels != 'grey']
+    top_mods = non_grey.value_counts().head(4).index.tolist()
+    sel_genes = []
+    for m in top_mods:
+        sel = non_grey[non_grey == m].index[:25]
+        sel_genes.extend(sel)
+    if len(sel_genes) < 50:  # fallback: first 100 features
+        sel_genes = list(expr.columns[:100])
+
+    sub_expr = expr[sel_genes]
+    # adjacency -> TOM using PyWGCNA static methods
+    adj = PyWGCNA.WGCNA.adjacency(sub_expr, adjacencyType='signed', power=int(pyWGCNA_obj.power))
+    tom = PyWGCNA.WGCNA.TOMsimilarity(adj, TOMType='signed')
+    # Plot TOM heatmap
+    plt.figure(figsize=(6,5))
+    sns.heatmap(tom, cmap='viridis', square=True, cbar_kws={'label':'TOM'})
+    plt.title('TOM Heatmap (subset)')
+    plt.tight_layout()
+    plt.savefig(fig_dir / "TOM_heatmap_subset.png", dpi=200)
+    plt.close()
+except Exception as e:
+    print(f"[warn] TOM heatmap skipped: {e}")
 
 # --- 4. Calculate Module Eigengenes (Targets, Y_mes) ---
 print("\n--- 4. Calculating Module Eigengenes (MEs) ---")
@@ -148,12 +250,123 @@ if Y_mes.shape[1] == 0:
     raise RuntimeError("No non-grey modules found; try lowering minModuleSize or adjusting parameters.")
 print(f"Created Y-target matrix with {Y_mes.shape[1]} module eigengenes (non-grey).")
 
+# 4A-5 Eigengene correlation heatmap
+try:
+    corr = Y_mes.corr()
+    plt.figure(figsize=(max(6, 0.5*len(corr)), max(5, 0.5*len(corr))))
+    sns.heatmap(corr, annot=False, cmap='coolwarm', center=0, square=True,
+                cbar_kws={'label':'Pearson r'})
+    plt.title('Module Eigengene Correlation')
+    plt.tight_layout()
+    plt.savefig(fig_dir / "eigengene_correlation_heatmap.png", dpi=200)
+    plt.close()
+except Exception as e:
+    print(f"[warn] Eigengene correlation heatmap skipped: {e}")
+
+# 4A-6 Variance explained per eigengene (from moduleEigengenes output)
+try:
+    var_exp = ME_out.get("varExplained")
+    if isinstance(var_exp, pd.DataFrame):
+        pc1 = var_exp.loc[1] if 1 in var_exp.index else var_exp.iloc[0]
+        plt.figure(figsize=(max(6, 0.5*len(pc1)), 4))
+        (pc1*100).sort_values(ascending=False).plot(kind='bar')
+        plt.ylabel('% Variance Explained (PC1)')
+        plt.title('Variance Explained by Module Eigengenes (PC1)')
+        plt.tight_layout()
+        plt.savefig(fig_dir / "eigengene_variance_explained.png", dpi=200)
+        plt.close()
+except Exception as e:
+    print(f"[warn] Variance explained plot skipped: {e}")
+
+# 4A-7 Module–Trait correlation heatmap (add metadata into .obs)
+try:
+    # Attach numeric metadata to the PyWGCNA object
+    # Keep only columns without NA to avoid API errors
+    md_clean = X_metadata.copy()
+    md_clean = md_clean.loc[wgcna_input_df.index]
+    md_clean = md_clean.loc[:, md_clean.isnull().mean() < 0.2].copy()  # drop columns with >=20% NA
+    pyWGCNA_obj.updateSampleInfo(sampleInfo=md_clean)
+
+    # Plot via API (saves a pdf by default name); we also export a png using our own draw if desired
+    cols_for_heatmap = list(md_clean.columns)[: min(20, md_clean.shape[1])]  # limit for readability
+    if len(cols_for_heatmap) > 0:
+        pyWGCNA_obj.module_trait_relationships_heatmap(
+            metaData=cols_for_heatmap,
+            alternative='two-sided',
+            file_name=str(fig_dir / "module_trait_relationships")
+        )
+    else:
+        print("[info] Skipped module–trait heatmap (no clean numeric traits).")
+except Exception as e:
+    print(f"[warn] Module–trait heatmap skipped: {e}")
+
+# 4A-8 kME (module membership) heatmap & hub genes
+try:
+    kme = pyWGCNA_obj.CalculateSignedKME()
+    # Keep top 200 genes by max |kME|
+    kme['max_abs_kME'] = kme.abs().max(axis=1)
+    top_genes = kme.nlargest(200, 'max_abs_kME').index
+    kme_top = kme.loc[top_genes].drop(columns=['max_abs_kME'])
+    plt.figure(figsize=(max(8, 0.2 * kme_top.shape[1]), 10))
+    sns.heatmap(kme_top, cmap='vlag', center=0)
+    plt.title('Signed kME (Module Membership) — Top 200 Genes')
+    plt.tight_layout()
+    plt.savefig(fig_dir / "kME_heatmap_top200.png", dpi=200)
+    plt.close()
+
+    # Save hub genes (top 10 per top 3 largest modules)
+    non_grey = module_labels[module_labels != 'grey']
+    largest_mods = non_grey.value_counts().head(3).index.tolist()
+    hub_dir = fig_dir / "hub_gene_tables"
+    hub_dir.mkdir(exist_ok=True)
+    for m in largest_mods:
+        hub_df = pyWGCNA_obj.top_n_hub_genes(moduleName=m, n=10)
+        hub_df.to_csv(hub_dir / f"top10_hubs_{m}.csv", index=False)
+except Exception as e:
+    print(f"[warn] kME heatmap / hub genes skipped: {e}")
+
+# 4A-9 Intramodular connectivity distributions
+try:
+    # Build full adjacency once (may be heavy if many features; adjust if needed)
+    expr = pyWGCNA_obj.datExpr.to_df()
+    adj_full = PyWGCNA.WGCNA.adjacency(expr, adjacencyType='signed', power=int(pyWGCNA_obj.power))
+    intrak = PyWGCNA.WGCNA.intramodularConnectivity(
+        mat=adj_full.values,
+        colors=module_labels.values,
+        index=expr.columns.values
+    )
+    # Plot distributions for up to 4 largest non-grey modules
+    non_grey = module_labels[module_labels != 'grey']
+    largest_mods = non_grey.value_counts().head(4).index.tolist()
+    plt.figure(figsize=(10, 6))
+    for m in largest_mods:
+        vals = intrak.set_index('index').loc[non_grey[non_grey == m].index, 'intra']
+        sns.kdeplot(vals, label=m, fill=False)
+    plt.legend(title='Module')
+    plt.xlabel('Intramodular Connectivity')
+    plt.title('Intramodular Connectivity Distributions (selected modules)')
+    plt.tight_layout()
+    plt.savefig(fig_dir / "intramodular_connectivity_distributions.png", dpi=200)
+    plt.close()
+except Exception as e:
+    print(f"[warn] Intramodular connectivity plot skipped: {e}")
+
+# 4A-10 Coexpression (network) HTML for largest modules
+try:
+    non_grey = module_labels[module_labels != 'grey']
+    largest_mods = non_grey.value_counts().head(3).index.tolist()
+    if len(largest_mods):
+        pyWGCNA_obj.CoexpressionModulePlot(
+            modules=largest_mods, numGenes=30, numConnections=200,
+            minTOM=0, file_name=str(fig_dir / "coexpression_modules")
+        )
+except Exception as e:
+    print(f"[warn] Coexpression module plot (HTML) skipped: {e}")
 
 # --- 5. Scale Metadata Predictors (Our X) ---
 print("\n--- 5. Scaling full metadata matrix (Our X Predictors) ---")
 scaler_meta = StandardScaler()
 X_meta_scaled = scaler_meta.fit_transform(X_metadata)
-
 
 # --- 6. Run Nested Cross-Validation: RF predicting each ME from X ---
 print(f"\n--- 6. Running {outer_cv_splits}-Fold Nested CV for {Y_mes.shape[1]} Module Eigengenes ---")
@@ -192,7 +405,6 @@ for me_name in Y_mes.columns:
         # Evaluate on outer test set
         best_model = grid_search.best_estimator_
         y_pred = best_model.predict(X_outer_test)
-
         score = r2_score(y_outer_test, y_pred)
         outer_loop_scores.append(score)
 
@@ -207,8 +419,6 @@ for me_name in Y_mes.columns:
 
     elapsed = time.time() - start_time
     print(f"  {me_name} Average R^2: {nested_cv_results[me_name]['avg_r2']:.4f} (took {elapsed:.1f} seconds)")
-
-
 
 # --- 7. Display & Save Final Results ---
 print("\n--- 7. Final Nested Cross-Validation Results ---")
