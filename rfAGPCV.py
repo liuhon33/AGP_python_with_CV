@@ -76,18 +76,34 @@ print(f"\n--- 3. Performing PCA on {otu_df_filtered.shape[1]} log-transformed OT
 scaler_otu = StandardScaler()
 otu_scaled = scaler_otu.fit_transform(otu_df_log_transformed)
 
-# Run PCA to get the top components for exploration
-pca_otu_explore = PCA(n_components=n_pcs_to_explore)
-# `pca_scores` are the coordinates of each sample
-pca_otu_scores = pca_otu_explore.fit_transform(otu_scaled)
-# `pca_loadings` show how much each OTU contributes to each PC
-pca_otu_loadings = pca_otu_explore.components_
-# `explained_variance` shows the % of variance each PC captures
-otu_explained_variance = pca_otu_explore.explained_variance_ratio_
+# Run PCA to get ALL components
+pca_otu_full = PCA(n_components=None)
+pca_otu_full.fit(otu_scaled) # Fit on the scaled OTU data
+
+# Get all explained variances
+all_otu_explained_variance = pca_otu_full.explained_variance_ratio_
+
+# --- NEW: Calculate components for 50% variance ---
+cumulative_variance = np.cumsum(all_otu_explained_variance)
+# Find the index of the first component that reaches or exceeds 0.50
+components_for_50_percent = np.argmax(cumulative_variance >= 0.50) + 1 # +1 because index is 0-based
+
+print("\n--- OTU PCA Variance Analysis ---")
+print(f"** Components needed to explain 50% of variance: {components_for_50_percent} **")
+print("---------------------------------")
+# ---
+
+# Now, get the specific slices needed for the rest of the script
+# Get data for the top N components for exploration (plots)
+otu_explained_variance_explore = all_otu_explained_variance[:n_pcs_to_explore]
+# We need to transform the data to get the scores
+pca_otu_scores_full = pca_otu_full.transform(otu_scaled)
+pca_otu_scores_explore = pca_otu_scores_full[:, :n_pcs_to_explore]
+pca_otu_loadings_explore = pca_otu_full.components_[:n_pcs_to_explore, :]
 
 print("Exploratory OTU PCA complete.")
 print(f"Variance explained by first {n_pcs_to_explore} OTU components:")
-for i, var in enumerate(otu_explained_variance):
+for i, var in enumerate(otu_explained_variance_explore):
     print(f"  PC{i+1}: {var*100:.2f}%")
 
 # --- 4. Generate Exploratory OTU PCA Plots ---
@@ -96,7 +112,7 @@ print("\n--- 4. Generating Exploratory OTU PCA Plots ---")
 # Plot 1: Scree Plot (Explained Variance)
 plt.figure(figsize=(8, 5))
 sns.barplot(x=[f'PC{i+1}' for i in range(n_pcs_to_explore)], 
-            y=otu_explained_variance * 100, 
+            y=otu_explained_variance_explore * 100, 
             color="steelblue")
 plt.title('Scree Plot - Variance Explained by OTU PCs')
 plt.ylabel('Percent Variance Explained')
@@ -107,12 +123,12 @@ print(f"OTU Scree plot saved to '{output_dir}otu_pca_scree_plot.pdf'")
 plt.close()
 
 # Plot 2: Scores Plot (Samples)
-pca_otu_scores_df = pd.DataFrame(pca_otu_scores, columns=[f'PC{i+1}' for i in range(n_pcs_to_explore)])
+pca_otu_scores_df = pd.DataFrame(pca_otu_scores_explore, columns=[f'PC{i+1}' for i in range(n_pcs_to_explore)])
 plt.figure(figsize=(8, 7))
 sns.scatterplot(data=pca_otu_scores_df, x='PC1', y='PC2', alpha=0.3)
 plt.title('OTU PCA Scores Plot (Samples in PC Space)')
-plt.xlabel(f'PC1 ({otu_explained_variance[0]*100:.2f}%)')
-plt.ylabel(f'PC2 ({otu_explained_variance[1]*100:.2f}%)')
+plt.xlabel(f'PC1 ({otu_explained_variance_explore[0]*100:.2f}%)')
+plt.ylabel(f'PC2 ({otu_explained_variance_explore[1]*100:.2f}%)')
 plt.grid(True, linestyle='--', alpha=0.6)
 plt.tight_layout()
 plt.savefig(os.path.join(output_dir, "otu_pca_scores_plot.pdf"))
@@ -120,9 +136,7 @@ print(f"OTU Scores plot saved to '{output_dir}otu_pca_scores_plot.pdf'")
 plt.close()
 
 # Plot 3: Loadings Bar Plot (Top Features for PC1)
-# (A heatmap of 819 OTUs is unreadable, so we plot the most important ones)
-loadings_pc1 = pd.Series(pca_otu_loadings[0, :], index=otu_df_filtered.columns)
-# Get top 10 positive and top 10 negative loadings
+loadings_pc1 = pd.Series(pca_otu_loadings_explore[0, :], index=otu_df_filtered.columns)
 top_loadings = pd.concat([loadings_pc1.nlargest(10), loadings_pc1.nsmallest(10)]).sort_values()
 
 plt.figure(figsize=(10, 8))
@@ -136,8 +150,8 @@ print(f"OTU PC1 Loadings plot saved to '{output_dir}otu_pca_pc1_loadings_plot.pd
 plt.close()
 
 # --- 5. Prepare Y Targets for Regression ---
-# Slice the scores from the PCA we already ran
-Y_pcs = pca_otu_scores[:, :n_pcs_to_predict]
+# Slice the scores from the full PCA we already ran
+Y_pcs = pca_otu_scores_full[:, :n_pcs_to_predict]
 print(f"\nUsing first {n_pcs_to_predict} PCs as targets for regression.")
 
 # --- 6. Scale Metadata Predictors (X) ---

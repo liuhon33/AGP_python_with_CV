@@ -21,7 +21,7 @@ def filter_otus_by_abundance(otu_df, threshold=0.0001):
 # --- 1. Configuration ---
 # File Paths
 otu_file_path = "./Data/Cleaned_data/AGP_Otu_Data.csv"
-metadata_file_path = "./Data/Cleaned_data/AGP_Metadata.csv"
+metadata_file_path = "./Data/Cleaned_data/processed_metadata.csv"
 metadata_index_col = 'sample_name'
 otu_index_col = 0
 
@@ -56,10 +56,8 @@ metadata_df = pd.read_csv(metadata_file_path, index_col=metadata_index_col)
 # --- 5. Align Dataframes ---
 common_samples = X_microbiome_log.index.intersection(metadata_df.index)
 print(f"Found {len(common_samples)} common samples between OTU and Metadata.")
-
 X_microbiome_full = X_microbiome_log.loc[common_samples]
 metadata_aligned = metadata_df.loc[common_samples]
-
 # Ensure same order
 metadata_aligned = metadata_aligned.sort_index()
 X_microbiome_full = X_microbiome_full.sort_index()
