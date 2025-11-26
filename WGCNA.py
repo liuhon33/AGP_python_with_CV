@@ -62,15 +62,24 @@ print(f"Data aligned. Found {len(common_samples)} common samples.")
 print(f"Initial number of OTUs: {otu_df.shape[1]}")
 
 # Filter OTU table by mean relative abundance
-otu_rel_abund = otu_df.apply(lambda x: x / x.sum(), axis=1)
-mean_rel_abund = otu_rel_abund.mean(axis=0)
-otus_to_keep = mean_rel_abund[mean_rel_abund > abundance_threshold].index
-otu_df_filtered = otu_df[otus_to_keep]
-print(f"Number of OTUs after filtering: {otu_df_filtered.shape[1]}")
+# --- IMPROVED FILTERING ---
+print(f"Initial OTUs: {otu_df.shape[1]}")
 
-# Log1p transform OTU counts (your current choice)
-otu_df_log_transformed = np.log1p(otu_df_filtered)
-print("Applied log(x+1) transformation to OTU counts.")
+# 1. Prevalence Filter: Keep OTUs present in at least 10% of samples
+# (Adjust to 0.05 if 0.10 removes too many, but 0.10 is safer for WGCNA)
+min_prevalence = 0.10 * otu_df.shape[0]
+present_in_samples = (otu_df > 0).sum(axis=0)
+otu_prevalence_filtered = otu_df.loc[:, present_in_samples > min_prevalence]
+print(f"OTUs after Prevalence filtering (10%): {otu_prevalence_filtered.shape[1]}")
+
+# 2. Abundance Filter: Keep OTUs with mean relative abundance > 0.0001
+otu_rel = otu_prevalence_filtered.div(otu_prevalence_filtered.sum(axis=1), axis=0)
+mean_rel = otu_rel.mean(axis=0)
+otu_final = otu_prevalence_filtered.loc[:, mean_rel > 0.0001]
+print(f"Final OTUs for WGCNA: {otu_final.shape[1]}")
+
+# 3. Apply Log Transform to this cleaner dataset
+otu_df_log_transformed = np.log1p(otu_final)
 
 # Prepare numeric metadata predictors (X)
 numeric_cols = metadata_df.select_dtypes(include=np.number).columns
@@ -96,7 +105,7 @@ pyWGCNA_obj = PyWGCNA.WGCNA(
     networkType='signed',      # or 'signed hybrid' (default); signed is fine here
     TOMType='signed',
     minModuleSize=20,          # smaller than default 50 for OTUs
-    RsquaredCut=0.8,           # your threshold
+    #RsquaredCut=0.8,           # your threshold
     save=False,
     figureType='pdf'
 )
@@ -108,11 +117,12 @@ pyWGCNA_obj.preprocess()
 # Pick soft-threshold power
 print("Finding soft-threshold power...")
 data_df = pyWGCNA_obj.datExpr.to_df()  # rows=samples, cols=OTUs
-pyWGCNA_obj.pickSoftThreshold(
-    data_df,
-    powerVector=range(1, 21),
-    RsquaredCut=0.8
-)
+# pyWGCNA_obj.pickSoftThreshold(
+#     data_df,
+#     powerVector=range(1, 21),
+#     RsquaredCut=0.8
+# )
+pyWGCNA_obj.power = 6
 
 # Build network & detect modules
 print("Building network and detecting modules via runWGCNA()...")
