@@ -128,56 +128,115 @@ print(f"Module detection complete. Found {n_modules_incl_grey} modules (includin
 print(module_labels.value_counts())
 
 # ================================
-# 4A. WGCNA VISUALS (NEW)
+# 4A. WGCNA VISUALS (CORRECTED)
 # ================================
 print("\n--- 4A. Creating WGCNA visualizations ---")
+import matplotlib.colors as mcolors # Required for the color bar fix
 
-# 4A-1 Soft-threshold (scale-free) plots
-try:
-    sft = pyWGCNA_obj.sft  # pandas DataFrame expected
-    if sft is not None and isinstance(sft, pd.DataFrame):
-        # R^2 vs power
-        plt.figure(figsize=(6,4))
-        sns.lineplot(data=sft, x='Power', y='SFT.R.sq', marker='o')
-        plt.axhline(pyWGCNA_obj.RsquaredCut, ls='--', alpha=0.7)
-        plt.title('Scale-Free Topology Fit (R²) vs Power')
-        plt.tight_layout()
-        plt.savefig(fig_dir / "sft_R2_vs_power.png", dpi=200)
-        plt.close()
+# Ensure output directory for figures exists
+fig_dir = Path(output_dir) / "wgcna_figs"
+fig_dir.mkdir(parents=True, exist_ok=True)
 
-        # Mean connectivity vs power
-        plt.figure(figsize=(6,4))
-        sns.lineplot(data=sft, x='Power', y='mean(k)', marker='o')
-        plt.title('Mean Connectivity vs Power')
-        plt.tight_layout()
-        plt.savefig(fig_dir / "sft_mean_connectivity_vs_power.png", dpi=200)
-        plt.close()
-except Exception as e:
-    print(f"[warn] Soft-threshold plots skipped: {e}")
+# 4A-1: Soft-Thresholding Plots
+# NOTE: PyWGCNA generates these plots inside 'pickSoftThreshold'. 
+# Accessing them manually requires inspecting the object attributes or checking the output folder 
+# if 'save=True' was set in initialization. We skip the manual call to avoid the AttributeError.
+print("... SFT plots are generated during the 'pickSoftThreshold' step above ...")
 
-# 4A-2 Gene dendrogram with module colors
+# 4A-2: The CUSTOM Dendrograms
 try:
     from scipy.cluster.hierarchy import dendrogram
-    geneTree = pyWGCNA_obj.geneTree  # linkage matrix (ndarray)
+    
+    print("... Plotting Custom Dendrograms ...")
+    
+    # Get the linkage matrix from the object
+    linkage_matrix = pyWGCNA_obj.geneTree
+
+    if linkage_matrix is not None:
+        # --- PLOT A: Truncated Dendrogram (The Readable One) ---
+        plt.figure(figsize=(12, 6))
+        dendrogram(
+            linkage_matrix,
+            truncate_mode='lastp',
+            p=100,
+            leaf_rotation=90.,
+            leaf_font_size=8.,
+            show_contracted=True,
+            above_threshold_color='black',
+            color_threshold=0
+        )
+        plt.title('Summary Dendrogram (Top 100 Branches Only)')
+        plt.xlabel('Cluster Size (number of OTUs in branch)')
+        plt.ylabel('Distance')
+        plt.tight_layout()
+        plt.savefig(fig_dir / "dendrogram_truncated_READABLE.pdf")
+        plt.close()
+
+        # --- PLOT B: Full Dendrogram (High Res, Thin Lines) ---
+        # FIX: dendrogram() does not accept 'linewidth'. 
+        # We use rc_context to change the global line setting temporarily.
+        plt.figure(figsize=(20, 8))
+        with plt.rc_context({'lines.linewidth': 0.1}): 
+            dendrogram(
+                linkage_matrix,
+                no_labels=True,
+                color_threshold=0,
+                above_threshold_color='blue'
+            )
+        plt.title('Full Gene Dendrogram (High Res, Thin Lines)')
+        plt.tight_layout()
+        plt.savefig(fig_dir / "dendrogram_full_hires.png", dpi=600) 
+        plt.close()
+    else:
+        print("[warn] No geneTree found in pyWGCNA_obj.")
+
+except Exception as e:
+    print(f"[error] Custom dendrogram plotting failed: {e}")
+
+# 4A-3: Module-Trait Heatmap
+try:
+    print("... Plotting Module-Trait Heatmap ...")
+    
+    # Update Sample Info
+    md_clean = X_metadata.copy()
+    md_clean = md_clean.loc[pyWGCNA_obj.datExpr.obs.index]
+    
+    # Update the object
+    pyWGCNA_obj.updateSampleInfo(sampleInfo=md_clean)
+    
+    # FIX: Removed 'figureType' argument which caused the error
+    pyWGCNA_obj.module_trait_relationships_heatmap(
+        file_name=str(fig_dir / "module_trait_relationships")
+    )
+    print("Module-Trait heatmap saved.")
+except Exception as e:
+    print(f"[warn] Module-Trait heatmap skipped: {e}")
+
+# 4A-4 Gene dendrogram with module colors (Color Bar Fix)
+try:
+    geneTree = pyWGCNA_obj.geneTree 
     if geneTree is not None:
-        plt.figure(figsize=(12, 4))
+        # Plot the dendrogram itself
+        plt.figure(figsize=(12, 5)) # Increased height slightly
         dendro = dendrogram(geneTree, no_labels=True, color_threshold=0)
         plt.title('Gene Dendrogram')
         plt.tight_layout()
         plt.savefig(fig_dir / "gene_dendrogram.png", dpi=200)
         plt.close()
 
-        # Color bar under dendrogram
+        # --- COLOR BAR FIX ---
         # Need leaves order to map colors
         leaves = dendro['leaves']
         ordered_cols = pyWGCNA_obj.datExpr.var.index[leaves]
         ordered_colors = module_labels.loc[ordered_cols].values
-        # Map color strings to hex where possible
-        unique_cols = pd.unique(ordered_colors)
-        color_map = {c:c for c in unique_cols}  # already CSS color names
-        color_bar = np.array([color_map[c] for c in ordered_colors])
-        fig, ax = plt.subplots(figsize=(12,0.3))
-        ax.imshow(color_bar.reshape(1, -1), aspect='auto')
+        
+        # FIX: Convert string colors (e.g., 'turquoise', '#ff0000') to RGB numbers
+        # imshow cannot handle an array of strings directly.
+        rgb_colors = [mcolors.to_rgb(c) for c in ordered_colors]
+        rgb_array = np.array(rgb_colors).reshape(1, len(rgb_colors), 3)
+
+        fig, ax = plt.subplots(figsize=(12, 0.5))
+        ax.imshow(rgb_array, aspect='auto')
         ax.set_yticks([])
         ax.set_xticks([])
         ax.set_title('Module Colors (ordered)')
@@ -185,9 +244,11 @@ try:
         plt.savefig(fig_dir / "gene_dendrogram_module_colors.png", dpi=200)
         plt.close()
 except Exception as e:
-    print(f"[warn] Dendrogram plot skipped: {e}")
+    import traceback
+    print(f"[warn] Dendrogram color bar plot skipped: {e}")
+    traceback.print_exc()
 
-# 4A-3 Module size barplot
+# 4A-5 Module size barplot
 try:
     vc = module_labels.value_counts().rename_axis('module').reset_index(name='size')
     plt.figure(figsize=(8,4))
@@ -200,35 +261,39 @@ try:
 except Exception as e:
     print(f"[warn] Module size plot skipped: {e}")
 
-# 4A-4 TOM heatmap (subset to avoid massive matrices)
+# 4A-6 TOM heatmap (subset)
 try:
-    # Use adjacency/TOM for a subset of high-connectivity genes for readability
-    # Get intramodular connectivity or fallback to degree via adjacency sum
-    # We'll compute adjacency for the subset of columns
     expr = pyWGCNA_obj.datExpr.to_df()
-    # choose up to 200 features: top 25 per largest 4 non-grey modules (or fallback)
     non_grey = module_labels[module_labels != 'grey']
-    top_mods = non_grey.value_counts().head(4).index.tolist()
-    sel_genes = []
-    for m in top_mods:
-        sel = non_grey[non_grey == m].index[:25]
-        sel_genes.extend(sel)
-    if len(sel_genes) < 50:  # fallback: first 100 features
-        sel_genes = list(expr.columns[:100])
+    if not non_grey.empty:
+        top_mods = non_grey.value_counts().head(4).index.tolist()
+        sel_genes = []
+        for m in top_mods:
+            sel = non_grey[non_grey == m].index[:25]
+            sel_genes.extend(sel)
+        
+        # Fallback if selection is too small
+        if len(sel_genes) < 50: 
+            sel_genes = list(expr.columns[:100])
 
-    sub_expr = expr[sel_genes]
-    # adjacency -> TOM using PyWGCNA static methods
-    adj = PyWGCNA.WGCNA.adjacency(sub_expr, adjacencyType='signed', power=int(pyWGCNA_obj.power))
-    tom = PyWGCNA.WGCNA.TOMsimilarity(adj, TOMType='signed')
-    # Plot TOM heatmap
-    plt.figure(figsize=(6,5))
-    sns.heatmap(tom, cmap='viridis', square=True, cbar_kws={'label':'TOM'})
-    plt.title('TOM Heatmap (subset)')
-    plt.tight_layout()
-    plt.savefig(fig_dir / "TOM_heatmap_subset.png", dpi=200)
-    plt.close()
+        sub_expr = expr[sel_genes]
+        
+        # Calculate Adjacency & TOM
+        adj = PyWGCNA.WGCNA.adjacency(sub_expr, adjacencyType='signed', power=int(pyWGCNA_obj.power))
+        tom = PyWGCNA.WGCNA.TOMsimilarity(adj, TOMType='signed')
+        
+        plt.figure(figsize=(6,5))
+        sns.heatmap(tom, cmap='viridis', square=True, cbar_kws={'label':'TOM'})
+        plt.title('TOM Heatmap (subset)')
+        plt.tight_layout()
+        plt.savefig(fig_dir / "TOM_heatmap_subset.png", dpi=200)
+        plt.close()
+    else:
+        print("[info] Skipping TOM heatmap (no non-grey modules found).")
 except Exception as e:
     print(f"[warn] TOM heatmap skipped: {e}")
+
+print("Visualizations complete.")
 
 # --- 4. Calculate Module Eigengenes (Targets, Y_mes) ---
 print("\n--- 4. Calculating Module Eigengenes (MEs) ---")
