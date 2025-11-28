@@ -161,7 +161,7 @@ X_meta_scaled = scaler_meta.fit_transform(X_metadata)
 
 # --- 7. Run Nested Cross-Validation for each PC ---
 print(f"\n--- 7. Running {outer_cv_splits}-Fold Nested CV for {n_pcs_to_predict} Microbiome PCs ---")
-print("(This is the time-consuming step. You can comment out from here.)")
+print("(This is the time-consuming step.)")
 
 nested_cv_results = {} 
 
@@ -204,33 +204,90 @@ for i in range(n_pcs_to_predict):
         y_true_all_folds.append(y_outer_test)
         y_pred_all_folds.append(y_pred)
 
-    # Store all results for this PC
+    # Store all results for this PC (Calculates Mean and SD)
     nested_cv_results[pc_name] = {
         'avg_r2': np.mean(outer_loop_scores),
+        'std_r2': np.std(outer_loop_scores, ddof=1), # ddof=1 for sample SD
         'y_true': np.concatenate(y_true_all_folds), 
         'y_pred': np.concatenate(y_pred_all_folds)
     }
     
     end_time = time.time()
-    print(f"  {pc_name} Average R^2: {nested_cv_results[pc_name]['avg_r2']:.4f} (took {end_time - start_time:.1f} seconds)")
+    print(f"  {pc_name} Average R^2: {nested_cv_results[pc_name]['avg_r2']:.4f} +/- {nested_cv_results[pc_name]['std_r2']:.4f} (took {end_time - start_time:.1f} seconds)")
 
 # --- 8. Display Final Results ---
 print("\n--- 8. Final Nested Cross-Validation Results ---")
-print("Average R^2 (Predictability of Microbiome PC from Metadata):")
-avg_scores = {pc: results['avg_r2'] for pc, results in nested_cv_results.items()}
-results_df = pd.DataFrame.from_dict(avg_scores, orient='index', columns=['Nested CV R^2'])
+# Create summary DataFrame containing Mean and SD
+summary_data = {
+    pc: {'Mean R2': res['avg_r2'], 'Std R2': res['std_r2']} 
+    for pc, res in nested_cv_results.items()
+}
+results_df = pd.DataFrame.from_dict(summary_data, orient='index')
 print(results_df)
 
 results_df.to_csv(os.path.join(output_dir, "rf_pcr_nested_cv_results.csv"))
 print(f"\nFull results saved to '{output_dir}rf_pcr_nested_cv_results.csv'")
 
 
+# --- 8b. Generate R^2 Performance Bar Plot with Error Bars ---
+print("\n--- 8b. Generating Model Performance Bar Plot ---")
+
+# Extract data for plotting from the results dictionary
+pc_names = list(nested_cv_results.keys())
+r2_means = [nested_cv_results[pc]['avg_r2'] for pc in pc_names]
+r2_stds = [nested_cv_results[pc]['std_r2'] for pc in pc_names]
+
+# Create DataFrame for plotting logic
+perf_df = pd.DataFrame({
+    'PC': pc_names,
+    'R2': r2_means,
+    'Error': r2_stds
+})
+
+plt.figure(figsize=(10, 6))
+
+# Create bar plot with error bars
+# Using matplotlib directly for easier control over yerr (error bars)
+bars = plt.bar(perf_df['PC'], perf_df['R2'], 
+               yerr=perf_df['Error'], 
+               capsize=5, 
+               color='steelblue', 
+               edgecolor='black', 
+               alpha=0.8)
+
+# Add a horizontal line at 0 for reference
+plt.axhline(0, color='black', linewidth=1)
+
+plt.title(f'Prediction Accuracy (Nested CV $R^2$) for Top {n_pcs_to_predict} Microbiome PCs')
+plt.xlabel('Target Principal Component')
+plt.ylabel('Average $R^2$ Score (+/- SD across 5 Folds)')
+plt.grid(axis='y', linestyle='--', alpha=0.5)
+
+# Optional: Add text labels on top/bottom of bars
+for bar, r2 in zip(bars, r2_means):
+    # Adjust label position: above bar if positive, below if negative
+    y_pos = bar.get_height() + (0.01 if r2 >= 0 else -0.04) 
+    # Adjust offset based on error bar height to avoid overlap
+    # (Simple logic: if error bar is large, push text further out)
+    
+    plt.text(bar.get_x() + bar.get_width()/2, y_pos, 
+             f'{r2:.3f}', 
+             ha='center', va='bottom' if r2 >= 0 else 'top', 
+             fontsize=9, fontweight='bold')
+
+plt.tight_layout()
+plt.savefig(os.path.join(output_dir, "rf_model_performance_bar_plot.pdf"))
+print(f"Performance bar plot saved to '{output_dir}rf_model_performance_bar_plot.pdf'")
+plt.show()
+plt.close()
+
+
 # --- 9. Generate Plot for Best Performing PC with Actual Fit Line ---
 print("\n--- 9. Generating Plot for Best PC ---")
 
-# Find the best PC
-best_pc_name = max(avg_scores, key=avg_scores.get)
-best_pc_avg_r2 = avg_scores[best_pc_name]
+# Find the best PC based on Mean R2
+best_pc_name = results_df['Mean R2'].idxmax()
+best_pc_avg_r2 = nested_cv_results[best_pc_name]['avg_r2']
 true_values = nested_cv_results[best_pc_name]['y_true']
 pred_values = nested_cv_results[best_pc_name]['y_pred']
 
