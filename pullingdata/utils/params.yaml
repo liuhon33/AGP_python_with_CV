@@ -1,0 +1,25 @@
+ukbiobank:
+  main:
+    # Raw release
+    csv:  file:///external/rprshnas01/external_data/uk_biobank/raw/ams/676831/2024/01/09/ukb676831.csv
+ 
+    # **Delta Lake** mirror (fast path!)
+    delta: file:///external/rprshnas01/external_data/uk_biobank/intermediates/676831/ukb676831.delta
+ 
+    # Requested columns (FieldIDs) – leave empty and pass at runtime
+    fields: []
+ 
+    # 0 = baseline, 1 = 1st follow-up, …
+    instances: [0]
+ 
+    coding:     file:///external/rprshnas01/external_data/uk_biobank/raw/ams/676831/2024/01/11/Codings.tsv
+    dictionary: file:///external/rprshnas01/external_data/uk_biobank/raw/ams/676831/2024/01/11/Data_Dictionary_Showcase.tsv
+ 
+    categories:            # Don't worry about these for right now, they are not being used for the get_dr.R
+      socio-demographics:  https://biobank.ndph.ox.ac.uk/showcase/label.cgi?id=701
+      cognitive-function:  https://biobank.ndph.ox.ac.uk/showcase/label.cgi?id=709
+      primary-demographics: https://biobank.ndph.ox.ac.uk/showcase/label.cgi?id=1001
+      mental-health:       https://biobank.ndph.ox.ac.uk/showcase/label.cgi?id=1018
+ 
+  features:
+    first-occurrences: file:///external/rprshnas01/external_data/uk_biobank/features/676831/1712/First occurrences.delta

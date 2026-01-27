@@ -14,6 +14,8 @@ import os
 import time # used to time each cross validation
 import matplotlib.pyplot as plt
 import seaborn as sns
+import joblib
+import json
 
 # 1. Configuration
 otu_file_path = "./Data/Cleaned_data/AGP_Otu_Data.csv"
@@ -38,6 +40,9 @@ param_grid = {
 
 output_dir = "./RF_on_PCA_Results/"
 os.makedirs(output_dir, exist_ok=True)
+# save trained objects
+model_dir = "./RF_PCA_Trained_Models/"
+os.makedirs(model_dir, exist_ok=True)
 
 # 2. Load and Prepare Data
 print("--- Loading data ---")
@@ -292,3 +297,88 @@ print(f"Prediction scatter plot for best PC ({best_pc_name}) saved.")
 plt.show()
 
 print("\nAnalysis complete.")
+
+# Saving "deployment" models
+# 1) Imports for saving
+# 2) After nested CV finishes, it trains FINAL models on ALL AGP
+#    - Fits OTU scaler + PCA on ALL AGP (defines the PC space you'll use for UKB projection)
+#    - Trains one RF model per PC with GridSearchCV on ALL AGP
+# 3) Saves:
+#    - final_otu_scaler.pkl
+#    - final_pca.pkl
+#    - final_rf_models.pkl (dict PC1..PCk -> fitted pipeline)
+#    - final_training_metadata.json (X columns, OTUs kept, params, CV scores)
+
+print("\n--- 8. Training FINAL (deployment) PCA + RF models on ALL AGP and saving ---")
+
+# 8.1 Fit FINAL OTU scaler + PCA on ALL AGP OTU data
+# (This is the PCA basis we will use to define PC1..PCk for deployment.)
+final_otu_scaler = StandardScaler()
+final_Y_scaled = final_otu_scaler.fit_transform(otu_df_log_transformed.values)
+
+final_pca = PCA(n_components=n_pcs_to_predict, random_state=random_state_cv)
+final_Y_pcs = final_pca.fit_transform(final_Y_scaled)  # shape: (n_samples, n_pcs_to_predict)
+
+print("Final PCA explained variance ratio:")
+for i, v in enumerate(final_pca.explained_variance_ratio_, start=1):
+    print(f"  PC{i}: {v*100:.2f}%")
+
+# 8.2 Train FINAL RF models (one per PC) on ALL AGP metadata with CV hyperparameter search
+# (This is separate from nested CV evaluation. Here we want a final model for projection.)
+final_cv = KFold(n_splits=inner_cv_splits, shuffle=True, random_state=random_state_cv)
+
+final_rf_models = {}      # pc_name -> best_estimator_
+final_rf_cv_info = {}     # pc_name -> best_params + best_cv_r2
+
+for pc_idx in range(n_pcs_to_predict):
+    pc_name = f"PC{pc_idx+1}"
+    y_target_all = final_Y_pcs[:, pc_idx]
+
+    final_grid_search = GridSearchCV(
+        estimator=rf_pipe,          # uses your existing Pipeline(imputer -> rf)
+        param_grid=param_grid,      # uses your existing hyperparameter grid
+        cv=final_cv,                # reuse your inner_cv_splits for training-time selection
+        scoring="r2",
+        n_jobs=-1,
+        verbose=0,
+        refit=True
+    )
+    final_grid_search.fit(X_metadata, y_target_all)
+
+    final_rf_models[pc_name] = final_grid_search.best_estimator_
+    final_rf_cv_info[pc_name] = {
+        "best_params": final_grid_search.best_params_,
+        "best_cv_r2": float(final_grid_search.best_score_)
+    }
+
+    print(f"  Saved FINAL {pc_name}: best CV R2={final_grid_search.best_score_:.4f} | best_params={final_grid_search.best_params_}")
+
+# 8.3 Save final objects to disk (for UKB projection script)
+joblib.dump(final_otu_scaler, os.path.join(model_dir, "final_otu_scaler.pkl"))
+joblib.dump(final_pca,        os.path.join(model_dir, "final_pca.pkl"))
+joblib.dump(final_rf_models,  os.path.join(model_dir, "final_rf_models.pkl"))
+
+# 8.4 Save metadata needed to ensure UKB uses identical feature set / OTU set
+final_training_metadata = {
+    "random_state_cv": random_state_cv,
+    "abundance_threshold": abundance_threshold,
+    "n_pcs_to_predict": n_pcs_to_predict,
+    "n_pcs_to_explore": n_pcs_to_explore,
+    "outer_cv_splits": outer_cv_splits,
+    "inner_cv_splits": inner_cv_splits,
+    "numeric_cols_used_as_X": list(numeric_cols),
+    "otus_kept_after_filter": list(otus_to_keep),
+    "final_pca_explained_variance_ratio": final_pca.explained_variance_ratio_.tolist(),
+    "final_rf_cv_info": final_rf_cv_info,
+    "param_grid": param_grid,
+}
+
+with open(os.path.join(model_dir, "final_training_metadata.json"), "w") as f:
+    json.dump(final_training_metadata, f, indent=2)
+
+print(f"Final deployment objects saved under: {model_dir}")
+print("Files written:")
+print(" - final_otu_scaler.pkl")
+print(" - final_pca.pkl")
+print(" - final_rf_models.pkl")
+print(" - final_training_metadata.json")
