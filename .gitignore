@@ -13,3 +13,12 @@ RF_on_PCA_Results/
 RF_on_ME_Results/
 RF_on_LDA_Results/
 LDA_Optimization_Results/
+LDA_Community_Analysis/
+LDA_Final_validation/
+output/
+paperOutput/
+regressionOutput/
+PLS_CV_Reconstruction_RidgeProcessing/
+PCR_CV_Results/
+Ridge_NestedCV_Results
+__pycache__
