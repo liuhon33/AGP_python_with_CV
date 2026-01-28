@@ -28,10 +28,7 @@ def process_metadata(filepath):
 
     # --- 2. Load Data ---
     try:
-        # Assuming the file is a CSV. 
-        # If it's an Excel file, use: pd.read_excel(filepath)
-        # If it's a TSV (tab-separated), use: pd.read_csv(filepath, sep='\t')
-        df = pd.read_csv(filepath)
+        df = pd.read_csv(filepath) # change to tsv if necessary
     except FileNotFoundError:
         print(f"Error: The file '{filepath}' was not found.")
         return None
@@ -39,7 +36,7 @@ def process_metadata(filepath):
         print(f"Error loading file: {e}")
         return None
 
-    # --- 3. Select Only the Columns You Want ---
+    # --- 3. Select Only the Columns we want, later check for the AUC values with microbiome
     # Check which of the desired columns actually exist in the file
     available_columns = [col for col in columns_to_select if col in df.columns]
     missing_columns = [col for col in columns_to_select if col not in df.columns]
@@ -75,13 +72,10 @@ def process_metadata(filepath):
         
     return df
 
-# --- Main execution block ---
 if __name__ == "__main__":
     
-    # --- !!! CHANGE THESE FILENAMES !!! ---
     INPUT_FILE = '/scratch/liuhon33/parallel/AGPMicrobiomeHostPredictions/Data/Cleaned_data/AGP_Metadata.csv'
     OUTPUT_FILE = 'processed_metadata.csv'
-    
     print(f"Starting metadata processing for '{INPUT_FILE}'...")
     
     # Run the processing function
@@ -89,8 +83,7 @@ if __name__ == "__main__":
     
     if processed_df is not None:
         print("\n--- Processing Complete ---")
-        
-        # --- 6. Save the Result ---
+        # save
         try:
             processed_df.to_csv(OUTPUT_FILE, index=False)
             print(f"\nSuccessfully saved processed data to '{OUTPUT_FILE}'")
