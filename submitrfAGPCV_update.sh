@@ -10,5 +10,6 @@
 cd $SCRATCH/parallel/AGPMicrobiomeHostPredictions
 module load python/3.11
 module load StdEnv/2023
+# module load r/4.3.1
 source ./my_sklearn_env/bin/activate
 python rfAGPCV_update.py

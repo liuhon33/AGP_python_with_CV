@@ -382,3 +382,68 @@ print(" - final_otu_scaler.pkl")
 print(" - final_pca.pkl")
 print(" - final_rf_models.pkl")
 print(" - final_training_metadata.json")
+
+# --- 9. Generate Feature Importance Plots for Top 5 PCs ---
+print("\n--- 9. Generating Feature Importance Plots (Top 5 PCs) ---")
+
+# Ensure we have the feature names
+feature_names = X_metadata.columns
+n_top_features = 15 # Number of top features to show per PC
+
+# Create a directory specifically for importance plots
+importance_dir = os.path.join(output_dir, "Feature_Importances")
+os.makedirs(importance_dir, exist_ok=True)
+
+# Loop through the first 5 PCs (or fewer if n_pcs_to_predict < 5)
+pcs_to_plot = min(5, n_pcs_to_predict)
+
+for pc_idx in range(pcs_to_plot):
+    pc_name = f"PC{pc_idx+1}"
+    
+    # Retrieve the trained pipeline for this PC
+    model_pipeline = final_rf_models[pc_name]
+    
+    # Access the Random Forest step specifically
+    # The step name is 'rf' as defined in your pipeline earlier
+    rf_model = model_pipeline.named_steps['rf']
+    
+    # Get importances
+    importances = rf_model.feature_importances_
+    
+    # Create a DataFrame for easy sorting and plotting
+    imp_df = pd.DataFrame({
+        'Feature': feature_names,
+        'Importance': importances
+    })
+    
+    # Sort by importance (descending) and take top N
+    imp_df_sorted = imp_df.sort_values(by='Importance', ascending=False).head(n_top_features)
+    
+    # Plotting
+    plt.figure(figsize=(10, 6))
+    sns.barplot(
+        data=imp_df_sorted,
+        x='Importance',
+        y='Feature',
+        palette='viridis',
+        hue='Feature',       # Added to suppress future warning
+        legend=False         # Hide legend as y-axis labels serve that purpose
+    )
+    
+    plt.title(f'Top {n_top_features} Lifestyle Predictors for {pc_name}')
+    plt.xlabel('Gini Importance')
+    plt.ylabel('Metadata Variable')
+    plt.tight_layout()
+    
+    # Save plot
+    save_path = os.path.join(importance_dir, f"feature_importance_{pc_name}.pdf")
+    plt.savefig(save_path)
+    plt.close()
+    
+    print(f"Saved feature importance plot for {pc_name} to '{save_path}'")
+
+    # Optional: Print the top 3 drivers to terminal for quick check
+    top_3 = imp_df_sorted['Feature'].head(3).tolist()
+    print(f"  -> Top drivers for {pc_name}: {', '.join(top_3)}")
+
+print("\nAll feature importance plots generated.")

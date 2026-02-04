@@ -22,3 +22,4 @@ PLS_CV_Reconstruction_RidgeProcessing/
 PCR_CV_Results/
 Ridge_NestedCV_Results
 __pycache__
+RF_PCA_Trained_Models/

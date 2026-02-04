@@ -10,4 +10,5 @@ cd $SCRATCH/parallel/AGPMicrobiomeHostPredictions
 module load python/3.11
 module load StdEnv/2023
 source ./my_sklearn_env/bin/activate
+# module load r/4.3.1
 python PLS_predict_life.py
