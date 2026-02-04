@@ -16,7 +16,7 @@ metadata_file_path = "./Data/Cleaned_data/processed_metadata.csv"
 metadata_index_col = 'sample_name'
 otu_index_col = 0
 
-output_dir = "./LDA_Final_Validation/"
+output_dir = ".hongrui_result/LDA_Final_Validation/"
 os.makedirs(output_dir, exist_ok=True)
 
 # MODEL PARAMETERS

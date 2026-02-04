@@ -44,7 +44,7 @@ param_grid = {
 }
 
 # Output directory
-output_dir = "./RF_on_ME_Results/"
+output_dir = ".hongrui_result/RF_on_ME_Results/"
 os.makedirs(output_dir, exist_ok=True)
 fig_dir = Path(output_dir) / "wgcna_figs"
 fig_dir.mkdir(parents=True, exist_ok=True)

@@ -11,4 +11,4 @@ module load python/3.11
 module load rust/1.91.0
 module load StdEnv/2023
 source ./my_sklearn_env/bin/activate
-python LDA.py
+python python_scripts/LDA.py

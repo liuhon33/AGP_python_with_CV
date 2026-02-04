@@ -26,7 +26,7 @@ n_components_pca_regression = 0.95 # For the regression
 n_components_pca_explore = 10      # For the exploratory plots
 
 # --- NEW: Set output directory ---
-output_dir = "./PCR_CV_Results/"
+output_dir = "./hongrui_result/PCR_CV_Results/"
 os.makedirs(output_dir, exist_ok=True)
 print(f"Alphas to test: {alphas_to_test}")
 print(f"PCA for regression set to capture: {n_components_pca_regression} variance")

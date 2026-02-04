@@ -28,7 +28,7 @@ metadata_file_path = "./Data/Cleaned_data/AGP_Metadata.csv"
 metadata_index_col = 'sample_name'
 otu_index_col = 0
 
-output_dir = "./PLS_CV_Predict_Lifestyle_py/" # New output directory
+output_dir = "./hongrui_result/PLS_CV_Predict_Lifestyle_py/" # New output directory
 
 # Parameters
 otu_abundance_threshold = 0.0001 # 0.01% threshold

@@ -25,7 +25,7 @@ metadata_file_path = "./Data/Cleaned_data/processed_metadata.csv"
 metadata_index_col = 'sample_name'
 otu_index_col = 0
 
-output_dir = "./PLS_CV_Reconstruction_py/" # Adjusted output directory
+output_dir = ".hongrui_result/PLS_CV_Reconstruction_py/" # Adjusted output directory
 
 # Parameters
 otu_abundance_threshold = 0.0001

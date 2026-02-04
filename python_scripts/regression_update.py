@@ -35,7 +35,7 @@ metadata_file_path = "./Data/Cleaned_data/processed_metadata.csv"
 metadata_index_col = "sample_name"
 otu_index_col = 0
 
-output_dir = "./Ridge_NestedCV_Results/"
+output_dir = ".hongrui_result/Ridge_NestedCV_Results/"
 os.makedirs(output_dir, exist_ok=True)
 
 # CV config

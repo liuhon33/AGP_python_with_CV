@@ -37,7 +37,7 @@ param_grid = {
 }
 
 # Set output directory
-output_dir = "./RF_on_PCA_Results/"
+output_dir = ".hongrui_result/RF_on_PCA_Results/"
 os.makedirs(output_dir, exist_ok=True)
 
 # --- 2. Load and Prepare Data ---

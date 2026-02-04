@@ -17,7 +17,7 @@ metadata_index_col = 'sample_name'
 otu_index_col = 0
 
 # --- NEW: Set output directory ---
-output_dir = "./Ridge_CV_Results/"
+output_dir = ".hongrui_result/Ridge_CV_Results/"
 os.makedirs(output_dir, exist_ok=True)
 
 # CV and Filtering

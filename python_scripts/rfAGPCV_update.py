@@ -38,7 +38,7 @@ param_grid = {
     'rf__max_depth': [None, 10, 20]
 }
 
-output_dir = "./RF_on_PCA_Results/"
+output_dir = "./hongrui_result/RF_on_PCA_Results/"
 os.makedirs(output_dir, exist_ok=True)
 # save trained objects
 model_dir = "./RF_PCA_Trained_Models/"
