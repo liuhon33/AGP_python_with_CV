@@ -1,7 +1,7 @@
 library(tidyverse)
 library(tools)
 
-generate_column_stats <- function(input_path, id_col_name) {
+generate_column_stats <- function(input_path, id_col_name, cols_to_skip = NULL) {
   
   # 1. Read Data
   ext <- file_ext(input_path)
@@ -11,13 +11,19 @@ generate_column_stats <- function(input_path, id_col_name) {
     df <- read_tsv(input_path, show_col_types = FALSE, name_repair = "unique")
   }
   
-  # 2. Exclude Identifier Column
-  if (id_col_name %in% names(df)) {
-    cols_to_process <- setdiff(names(df), id_col_name)
-  } else {
-    warning(paste("Column '", id_col_name, "' not found. Processing all columns."))
-    cols_to_process <- names(df)
+  # 2. Exclude Identifier AND Skipped Columns
+  # Check if ID exists (to keep your original warning logic)
+  if (!(id_col_name %in% names(df))) {
+    warning(paste("Column '", id_col_name, "' not found. It will be ignored."))
   }
+  
+  # Combine ID + Skipped columns into one exclusion vector
+  # c() handles NULLs gracefully, so if cols_to_skip is NULL, it just uses id_col_name
+  all_exclusions <- c(id_col_name, cols_to_skip)
+  
+  # setdiff automatically removes the columns in 'all_exclusions' from 'names(df)'
+  cols_to_process <- setdiff(names(df), all_exclusions)
+  
   
   # 3. Initialize list for results
   results_list <- list()
@@ -31,13 +37,11 @@ generate_column_stats <- function(input_path, id_col_name) {
     
     # A. Check if natively Numeric
     is_num_type <- is.numeric(col_data) || is.integer(col_data)
-    is_date_type <- FALSE # Reset for every column
+    is_date_type <- FALSE 
     
-    # Check if natively Date (if read_csv already guessed it correctly)
-    # This prevents errors if read_csv did the job for us
     if (inherits(col_data, "Date")) {
       is_date_type <- TRUE
-      is_num_type <- FALSE # Prioritize Date over numeric logic
+      is_num_type <- FALSE 
     }
     
     # B. If it looks like Character, try to convert it
@@ -49,26 +53,21 @@ generate_column_stats <- function(input_path, id_col_name) {
       parsed_num <- suppressWarnings(as.numeric(col_data))
       n_parsed_num <- sum(!is.na(parsed_num))
       
-      # 2. Try converting to Date (FIXED HERE)
-      # We use 'format =' instead of tryFormats. 
-      # This forces NA on failure instead of Error.
+      # 2. Try converting to Date
       parsed_date <- as.Date(col_data, format = "%Y-%m-%d")
       n_parsed_date <- sum(!is.na(parsed_date))
       
       # DECISION TREE
       if (n_valid > 0 && (n_parsed_num / n_valid) > 0.9) {
-        # It's a Number disguised as text
         col_data <- parsed_num
         is_num_type <- TRUE
       } else if (n_valid > 0 && (n_parsed_date / n_valid) > 0.9) {
-        # It's a Date disguised as text
         col_data <- parsed_date
         is_date_type <- TRUE
       }
     }
     
     # --- CALCULATE STATS BASED ON TYPE ---
-    
     val_str   <- ""
     count_str <- ""
     prop_str  <- ""
@@ -98,14 +97,9 @@ generate_column_stats <- function(input_path, id_col_name) {
       if (length(valid_vals) == 0) {
         val_str <- "NA"; count_str <- "NA"; prop_str <- "NA"
       } else {
-        # Calculate Oldest and Latest
         min_date <- min(valid_vals)
         max_date <- max(valid_vals)
-        
-        # Format as (Oldest, Latest)
         val_str <- paste0("(", min_date, ", ", max_date, ")")
-        
-        # Requirement: Count and Prop are NA
         count_str <- "NA"
         prop_str  <- "NA"
       }
@@ -138,10 +132,12 @@ generate_column_stats <- function(input_path, id_col_name) {
   }
   
   # 6. Bind all results
-  stats_table <- bind_rows(results_list)
+  if (length(results_list) > 0) {
+    stats_table <- bind_rows(results_list)
+  } else {
+    stats_table <- tibble() # Return empty tibble if nothing processed
+  }
+  
   return(stats_table)
 }
 
-# --- EXAMPLE USAGE ---
-output <- generate_column_stats("AGP_Metadata.csv", "sample_name")
-write_tsv(output, "summary_stats_metadata.tsv")

@@ -1,0 +1,142 @@
+colname	inferred_type	value	count	proportion
+acne_medication	numeric	(0, 0.08, 2)	NA	standard deviation: 0.37
+acne_medication_otc	numeric	(0, 0.14, 2)	NA	standard deviation: 0.43
+alcohol_consumption	numeric	(0, 0.79, 2)	NA	standard deviation: 0.46
+alcohol_types_beercider	numeric	(0, 0.33, 1)	NA	standard deviation: 0.47
+alcohol_types_red_wine	numeric	(0, 0.41, 1)	NA	standard deviation: 0.49
+alcohol_types_sour_beers	numeric	(0, 0.04, 1)	NA	standard deviation: 0.19
+alcohol_types_spiritshard_alcohol	numeric	(0, 0.26, 1)	NA	standard deviation: 0.44
+alcohol_types_white_wine	numeric	(0, 0.29, 1)	NA	standard deviation: 0.45
+allergic_to_i_have_no_food_allergies_that_i_know_of	numeric	(0, 0.53, 1)	NA	standard deviation: 0.5
+allergic_to_other	numeric	(0, 0.08, 1)	NA	standard deviation: 0.27
+allergic_to_peanuts	numeric	(0, 0.01, 1)	NA	standard deviation: 0.12
+allergic_to_shellfish	numeric	(0, 0.02, 1)	NA	standard deviation: 0.14
+allergic_to_tree_nuts	numeric	(0, 0.01, 1)	NA	standard deviation: 0.12
+appendix_removed	numeric	(0, 0.16, 2)	NA	standard deviation: 0.44
+breastmilk_formula_ensure	numeric	(0, 0.54, 2)	NA	standard deviation: 0.88
+cat	numeric	(0, 0.3, 2)	NA	standard deviation: 0.51
+chickenpox	numeric	(0, 0.94, 2)	NA	standard deviation: 0.47
+consume_animal_products_abx	numeric	(0, 1.32, 2)	NA	standard deviation: 0.78
+csection	numeric	(0, 0.22, 2)	NA	standard deviation: 0.55
+dog	numeric	(0, 0.35, 2)	NA	standard deviation: 0.52
+lactose	numeric	(0, 0.25, 2)	NA	standard deviation: 0.52
+livingwith	numeric	(0, 0.52, 2)	NA	standard deviation: 0.64
+lowgrain_diet_type	numeric	(0, 1.37, 2)	NA	standard deviation: 0.86
+mental_illness	numeric	(0, 1.04, 2)	NA	standard deviation: 0.96
+mental_illness_type_anorexia_nervosa	numeric	(0, 0.96, 2)	NA	standard deviation: 1
+mental_illness_type_bipolar_disorder	numeric	(0, 0.96, 2)	NA	standard deviation: 1
+mental_illness_type_bulimia_nervosa	numeric	(0, 0.96, 2)	NA	standard deviation: 1
+mental_illness_type_depression	numeric	(0, 1.02, 2)	NA	standard deviation: 0.97
+mental_illness_type_ptsd_posttraumatic_stress_disorder	numeric	(0, 0.97, 2)	NA	standard deviation: 0.99
+mental_illness_type_schizophrenia	numeric	(0, 0.96, 2)	NA	standard deviation: 1
+mental_illness_type_substance_abuse	numeric	(0, 0.96, 2)	NA	standard deviation: 1
+multivitamin	numeric	(0, 0.38, 2)	NA	standard deviation: 0.54
+nail_biter	numeric	(0, 0.27, 2)	NA	standard deviation: 0.51
+non_food_allergies_beestings	numeric	(0, 0.02, 1)	NA	standard deviation: 0.15
+non_food_allergies_drug_eg_penicillin	numeric	(0, 0.12, 1)	NA	standard deviation: 0.32
+non_food_allergies_pet_dander	numeric	(0, 0.09, 1)	NA	standard deviation: 0.29
+non_food_allergies_poison_ivyoak	numeric	(0, 0.08, 1)	NA	standard deviation: 0.27
+non_food_allergies_sun	numeric	(0, 0.02, 1)	NA	standard deviation: 0.13
+other_supplement_frequency	numeric	(0, 0.56, 2)	NA	standard deviation: 0.56
+pets_other	numeric	(0, 1.01, 2)	NA	standard deviation: 0.97
+pregnant	numeric	(0, 0.38, 2)	NA	standard deviation: 0.78
+roommates_in_study	numeric	(0, 0.75, 2)	NA	standard deviation: 0.89
+seasonal_allergies	numeric	(0, 0.46, 2)	NA	standard deviation: 0.58
+softener	numeric	(0, 0.4, 2)	NA	standard deviation: 0.56
+specialized_diet_exclude_dairy	numeric	(0, 1.34, 2)	NA	standard deviation: 0.92
+specialized_diet_exclude_nightshades	numeric	(0, 1.31, 2)	NA	standard deviation: 0.95
+specialized_diet_exclude_refined_sugars	numeric	(0, 1.35, 2)	NA	standard deviation: 0.91
+specialized_diet_fodmap	numeric	(0, 1.31, 2)	NA	standard deviation: 0.95
+specialized_diet_halaal	numeric	(0, 1.31, 2)	NA	standard deviation: 0.95
+specialized_diet_kosher	numeric	(0, 1.31, 2)	NA	standard deviation: 0.95
+specialized_diet_modified_paleo_diet	numeric	(0, 1.33, 2)	NA	standard deviation: 0.93
+specialized_diet_other_restrictions_not_described_here	numeric	(0, 1.34, 2)	NA	standard deviation: 0.92
+specialized_diet_paleodiet_or_primal_diet	numeric	(0, 1.31, 2)	NA	standard deviation: 0.94
+specialized_diet_raw_food_diet	numeric	(0, 1.31, 2)	NA	standard deviation: 0.95
+specialized_diet_westenprice_or_other_lowgrain_low_processed_fo	numeric	(0, 1.33, 2)	NA	standard deviation: 0.93
+tonsils_removed	numeric	(0, 0.31, 2)	NA	standard deviation: 0.54
+alcohol_frequency	numeric	(0, 1.72, 5)	NA	standard deviation: 1.36
+artificial_sweeteners	numeric	(0, 2.65, 5)	NA	standard deviation: 2.36
+cosmetics_frequency	numeric	(0, 1.39, 5)	NA	standard deviation: 1.72
+exercise_frequency	numeric	(0, 2.71, 5)	NA	standard deviation: 1.08
+fermented_plant_frequency	numeric	(0, 2.09, 5)	NA	standard deviation: 1.95
+flossing_frequency	numeric	(0, 2.5, 5)	NA	standard deviation: 1.5
+frozen_dessert_frequency	numeric	(0, 1.91, 5)	NA	standard deviation: 1.86
+fruit_frequency	numeric	(0, 3.25, 5)	NA	standard deviation: 1.43
+high_fat_red_meat_frequency	numeric	(0, 2.14, 5)	NA	standard deviation: 1.82
+homecooked_meals_frequency	numeric	(0, 3.76, 5)	NA	standard deviation: 1.03
+meat_eggs_frequency	numeric	(0, 3.4, 5)	NA	standard deviation: 1.27
+milk_cheese_frequency	numeric	(0, 2.93, 5)	NA	standard deviation: 1.66
+milk_substitute_frequency	numeric	(0, 2.19, 5)	NA	standard deviation: 2.05
+olive_oil	numeric	(0, 3.21, 5)	NA	standard deviation: 1.42
+one_liter_of_water_a_day_frequency	numeric	(0, 3.57, 5)	NA	standard deviation: 1.26
+pool_frequency	numeric	(0, 0.8, 5)	NA	standard deviation: 1.04
+poultry_frequency	numeric	(0, 2.72, 5)	NA	standard deviation: 1.57
+prepared_meals_frequency	numeric	(0, 2.41, 5)	NA	standard deviation: 1.63
+probiotic_frequency	numeric	(0, 2.24, 5)	NA	standard deviation: 2.02
+ready_to_eat_meals_frequency	numeric	(0, 1.77, 5)	NA	standard deviation: 1.95
+red_meat_frequency	numeric	(0, 2.47, 5)	NA	standard deviation: 1.68
+salted_snacks_frequency	numeric	(0, 2.38, 5)	NA	standard deviation: 1.73
+seafood_frequency	numeric	(0, 2.39, 5)	NA	standard deviation: 1.67
+smoking_frequency	numeric	(0, 0.23, 5)	NA	standard deviation: 0.9
+sugar_sweetened_drink_frequency	numeric	(0, 1.52, 5)	NA	standard deviation: 2.07
+sugary_sweets_frequency	numeric	(0, 2.67, 5)	NA	standard deviation: 1.69
+teethbrushing_frequency	numeric	(0, 3.94, 5)	NA	standard deviation: 0.41
+vegetable_frequency	numeric	(0, 3.72, 5)	NA	standard deviation: 1.02
+vitamin_b_supplement_frequency	numeric	(0, 2.02, 5)	NA	standard deviation: 2.13
+vitamin_d_supplement_frequency	numeric	(0, 2.39, 5)	NA	standard deviation: 2.07
+vivid_dreams	numeric	(0, 2.84, 5)	NA	standard deviation: 2.2
+whole_eggs	numeric	(0, 2.79, 5)	NA	standard deviation: 1.56
+whole_grain_frequency	numeric	(0, 2.89, 5)	NA	standard deviation: 1.62
+acid_reflux	numeric	(0, 2.09, 4)	NA	standard deviation: 1.91
+add_adhd	numeric	(0, 1.09, 4)	NA	standard deviation: 1.73
+alzheimers	numeric	(0, 0.94, 4)	NA	standard deviation: 1.7
+asd	numeric	(0, 1, 4)	NA	standard deviation: 1.71
+autoimmune	numeric	(0, 1.09, 4)	NA	standard deviation: 1.7
+cancer	numeric	(0, 1.96, 4)	NA	standard deviation: 1.97
+cardiovascular_disease	numeric	(0, 0.99, 4)	NA	standard deviation: 1.7
+cdiff	numeric	(0, 1.02, 4)	NA	standard deviation: 1.73
+clinical_condition	numeric	(0, 1.24, 4)	NA	standard deviation: 1.71
+depression_bipolar_schizophrenia	numeric	(0, 3.16, 4)	NA	standard deviation: 1.59
+diabetes	numeric	(0, 0.16, 4)	NA	standard deviation: 0.75
+epilepsy_or_seizure_disorder	numeric	(0, 0.96, 4)	NA	standard deviation: 1.7
+fungal_overgrowth	numeric	(0, 1.25, 4)	NA	standard deviation: 1.74
+ibd	numeric	(0, 0.29, 4)	NA	standard deviation: 0.98
+ibs	numeric	(0, 1.26, 4)	NA	standard deviation: 1.72
+kidney_disease	numeric	(0, 0.97, 4)	NA	standard deviation: 1.71
+liver_disease	numeric	(0, 0.98, 4)	NA	standard deviation: 1.71
+lung_disease	numeric	(0, 0.31, 4)	NA	standard deviation: 0.92
+migraine	numeric	(0, 0.46, 4)	NA	standard deviation: 1.1
+pku	numeric	(0, 0.16, 4)	NA	standard deviation: 0.78
+sibo	numeric	(0, 1.13, 4)	NA	standard deviation: 1.76
+skin_condition	numeric	(0, 0.56, 4)	NA	standard deviation: 1.12
+thyroid	numeric	(0, 1.07, 4)	NA	standard deviation: 1.69
+age_cat	character	20s | 30s | 40s | 50s | 60s | 70+ | baby | child | Not provided | teen | Unspecified	913, 1822, 1890, 1946, 1821, 651, 3, 440, 452, 253, 175	0.088076, 0.175767, 0.182327, 0.187729, 0.17567, 0.062801, 0.000289, 0.042446, 0.043604, 0.024407, 0.016882
+antibiotic_history	character	6 months | I have not taken antibiotics in the past year. | Month | Not provided | Unspecified | Week | Year	1217, 6795, 339, 230, 43, 210, 1532	0.117403, 0.655508, 0.032703, 0.022188, 0.004148, 0.020259, 0.147791
+bmi_cat	character	Normal | Not provided | Obese | Overweight | Underweight | Unspecified	5627, 471, 1038, 2300, 833, 97	0.542832, 0.045437, 0.100135, 0.221879, 0.080359, 0.009358
+bowel_movement_frequency	character	Five or more | Four | Less than one | Not provided | One | Three | Two | Unspecified	87, 155, 784, 2667, 3743, 589, 2050, 291	0.008393, 0.014953, 0.075632, 0.257283, 0.361084, 0.05682, 0.197762, 0.028073
+bowel_movement_quality	character	I don't know, I do not have a point of reference | I tend to be constipated (have difficulty passing stool) | I tend to be constipated (have difficulty passing stool) - Type 1 and 2 | I tend to have diarrhea (watery stool) | I tend to have diarrhea (watery stool) - Type 5, 6 and 7 | I tend to have normal formed stool | I tend to have normal formed stool - Type 3 and 4 | Not provided | Unspecified	204, 258, 604, 234, 909, 1115, 4574, 2392, 76	0.01968, 0.024889, 0.058267, 0.022574, 0.087691, 0.107563, 0.44125, 0.230754, 0.007332
+cancer_treatment	character	Chemotherapy | No treatment | Not provided | Radiation therapy | Surgery only | Unspecified	71, 20, 7651, 60, 252, 2312	0.006849, 0.001929, 0.738086, 0.005788, 0.02431, 0.223037
+census_region	character	Midwest | Northeast | Not provided | South | Unspecified | West	708, 1264, 2630, 1141, 1660, 2963	0.0683, 0.121937, 0.253714, 0.110071, 0.160139, 0.285838
+collection_season	character	Fall | Spring | Summer | Winter	1841, 3329, 2541, 2655	0.1776, 0.321146, 0.245128, 0.256126
+contraceptive	character	No | Not provided | Unspecified | Yes, I am taking the ""pill"" | Yes, I use a contraceptive patch (Ortho-Evra) | Yes, I use a hormonal IUD (Mirena) | Yes, I use an injected contraceptive (DMPA) | Yes, I use the NuvaRing	8180, 1440, 83, 391, 7, 205, 25, 35	0.789118, 0.138916, 0.008007, 0.037719, 0.000675, 0.019776, 0.002412, 0.003376
+flu_vaccine_date	character	6 months | I have not gotten the flu vaccine in the past year. | Month | Not provided | Unspecified | Week | Year	2044, 5839, 357, 244, 46, 81, 1755	0.197183, 0.563284, 0.03444, 0.023538, 0.004438, 0.007814, 0.169303
+gluten	character	I do not eat gluten because it makes me feel bad | I was diagnosed with celiac disease | I was diagnosed with gluten allergy (anti-gluten IgG), but not celiac disease | No | Not provided | Unspecified	1241, 118, 275, 7785, 818, 129	0.119718, 0.011383, 0.026529, 0.751013, 0.078912, 0.012445
+country	character	Argentina | Australia | Austria | Belgium | Brazil | Canada | China | Colombia | Croatia | Czech Republic | Denmark | Estonia | Finland | France | Georgia | Germany | Greece | Guernsey | Hong Kong | India | Ireland | Isle of Man | Israel | Italy | Japan | Jersey | Malta | Mexico | Morocco | Netherlands | New Zealand | Norway | Not provided | Oman | Peru | Poland | Portugal | Puerto Rico | Serbia | Singapore | Slovakia | South Korea | Spain | Sweden | Switzerland | Thailand | United Arab Emirates | United Kingdom | United States Minor Outlying Islands | Unspecified | USA	1, 247, 7, 24, 4, 153, 6, 2, 2, 7, 8, 1, 3, 30, 1, 43, 1, 6, 3, 1, 35, 4, 2, 13, 10, 5, 1, 2, 8, 18, 13, 10, 24, 3, 1, 1, 2, 1, 4, 6, 4, 2, 11, 30, 62, 5, 4, 2738, 2, 12, 6783	9.6e-05, 0.023828, 0.000675, 0.002315, 0.000386, 0.01476, 0.000579, 0.000193, 0.000193, 0.000675, 0.000772, 9.6e-05, 0.000289, 0.002894, 9.6e-05, 0.004148, 9.6e-05, 0.000579, 0.000289, 9.6e-05, 0.003376, 0.000386, 0.000193, 0.001254, 0.000965, 0.000482, 9.6e-05, 0.000193, 0.000772, 0.001736, 0.001254, 0.000965, 0.002315, 0.000289, 9.6e-05, 9.6e-05, 0.000193, 9.6e-05, 0.000386, 0.000579, 0.000386, 0.000193, 0.001061, 0.002894, 0.005981, 0.000482, 0.000386, 0.264133, 0.000193, 0.001158, 0.654351
+diabetes_type	character	Gestational diabetes | Not provided | Type I diabetes | Type II diabetes | Unspecified	7, 7798, 22, 110, 2429	0.000675, 0.752267, 0.002122, 0.010612, 0.234324
+drinks_per_session	character	1 | 1-2 | 2-3 | 2-Jan | 3-4 | 3-Feb | 4+ | I don't drink | Not provided | Unspecified	788, 1251, 604, 3, 253, 1, 161, 759, 6289, 257	0.076018, 0.120683, 0.058267, 0.000289, 0.024407, 9.6e-05, 0.015532, 0.07322, 0.606695, 0.024793
+drinking_water_source	character	Bottled | City | Filtered | Not provided | Not sure | Unspecified | Well	991, 4915, 3457, 159, 138, 42, 664	0.095601, 0.474146, 0.333494, 0.015339, 0.013313, 0.004052, 0.064056
+types_of_plants	character	11 to 20 | 21 to 30 | 6 to 10 | Less than 5 | More than 30 | Not provided | Unspecified	2662, 1583, 1931, 587, 878, 2594, 131	0.256801, 0.152711, 0.186282, 0.056627, 0.0847, 0.250241, 0.012637
+diet_type	character	Not provided | Omnivore | Omnivore but do not eat red meat | Unspecified | Vegan | Vegetarian | Vegetarian but eat seafood	194, 8186, 681, 68, 246, 448, 543	0.018715, 0.789697, 0.065696, 0.00656, 0.023731, 0.043218, 0.052383
+fed_as_infant	character	A mixture of breast milk and formula | Not provided | Not sure | Primarily breast milk | Primarily infant formula | Unspecified	1281, 2372, 1046, 3663, 1941, 63	0.123577, 0.228825, 0.100907, 0.353367, 0.187247, 0.006078
+level_of_education	character	Associate's degree | Bachelor's degree | Did not complete high school | Graduate or Professional degree | High School or GED equilivant | Not provided | Some college or technical school | Some graduate school or professional | Unspecified	208, 1973, 275, 3513, 333, 2537, 787, 583, 157	0.020066, 0.190334, 0.026529, 0.338896, 0.032124, 0.244742, 0.075921, 0.056242, 0.015146
+race	character	African American | Asian or Pacific Islander | Caucasian | Hispanic | Not provided | Other | Unspecified	94, 501, 9000, 259, 152, 318, 42	0.009068, 0.048331, 0.868223, 0.024986, 0.014663, 0.030677, 0.004052
+sex	character	female | male | Not provided | other | unspecified	5397, 4634, 293, 9, 33	0.520644, 0.447038, 0.028265, 0.000868, 0.003183
+sleep_duration	character	5-6 hours | 6-7 hours | 7-8 hours | 8 or more hours | Less than 5 hours | Not provided | Unspecified	1013, 3185, 4058, 1757, 129, 176, 48	0.097723, 0.307254, 0.391472, 0.169496, 0.012445, 0.016979, 0.004631
+weight_change	character	Decreased more than 10 pounds | Increased more than 10 pounds | Not provided | Remained stable | Unspecified	907, 807, 267, 8319, 66	0.087498, 0.077851, 0.025757, 0.802527, 0.006367
+country_residence	character	Argentina | Australia | Austria | Bahamas | Belgium | Brazil | Canada | China | Colombia | Croatia | Czech Republic | Denmark | Estonia | Finland | France | Georgia | Germany | Greece | Guernsey | Hong Kong | Iceland | India | Ireland | Isle of Man | Israel | Italy | Japan | Jersey | Korea, Republic of | Malta | Mexico | Morocco | Netherlands | New Zealand | Norway | Not provided | Peru | Portugal | Puerto Rico | Saudi Arabia | Serbia | Singapore | Slovakia | Spain | Sri Lanka | Sudan | Sweden | Switzerland | Tanzania, United Republic of | Thailand | Turkey | United Arab Emirates | United Kingdom | United States | United States Minor Outlying Islands | Unspecified | Uruguay	1, 111, 7, 1, 18, 4, 80, 10, 1, 2, 2, 6, 1, 2, 21, 1, 33, 1, 6, 5, 1, 12, 36, 5, 2, 13, 10, 5, 3, 1, 3, 8, 13, 7, 6, 4798, 1, 2, 1, 1, 4, 6, 4, 11, 1, 1, 29, 55, 2, 1, 1, 6, 2074, 2811, 1, 117, 1	9.6e-05, 0.010708, 0.000675, 9.6e-05, 0.001736, 0.000386, 0.007718, 0.000965, 9.6e-05, 0.000193, 0.000193, 0.000579, 9.6e-05, 0.000193, 0.002026, 9.6e-05, 0.003183, 9.6e-05, 0.000579, 0.000482, 9.6e-05, 0.001158, 0.003473, 0.000482, 0.000193, 0.001254, 0.000965, 0.000482, 0.000289, 9.6e-05, 0.000289, 0.000772, 0.001254, 0.000675, 0.000579, 0.462859, 9.6e-05, 0.000193, 9.6e-05, 9.6e-05, 0.000386, 0.000579, 0.000386, 0.001061, 9.6e-05, 9.6e-05, 0.002798, 0.005306, 0.000193, 9.6e-05, 9.6e-05, 0.000579, 0.200077, 0.271175, 9.6e-05, 0.011287, 9.6e-05
+subset_healthy	character	FALSE | TRUE	6048, 4318	0.583446, 0.416554
+age_years	numeric	(0, 45.53, 101)	NA	standard deviation: 17.76
+age_corrected	numeric	(1, 46.08, 101)	NA	standard deviation: 17.18
+bmi	numeric	(0, 1132.93, 1130000)	NA	standard deviation: 22450.34
+weight_kg	numeric	(0, 69.51, 894)	NA	standard deviation: 23.7

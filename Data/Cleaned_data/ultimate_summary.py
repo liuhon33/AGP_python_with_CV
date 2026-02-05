@@ -159,4 +159,4 @@ if __name__ == "__main__":
     # Create a dummy file for testing if needed, or point to real file
     # output = generate_column_stats("pulled_UKBAGP.tsv", "eid")
     # output.to_csv("summary_stats_python.tsv", sep='\t', index=False)
-    pass
+    generate_column_stats("AGP_Metadata.csv", "sample_name")
