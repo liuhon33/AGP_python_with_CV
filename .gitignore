@@ -12,5 +12,6 @@ hongrui_result/
 output/
 my_sklearn_env/
 __pycache__
+.ipynb_checkpoints
 
 RF_PCA_Trained_Models/

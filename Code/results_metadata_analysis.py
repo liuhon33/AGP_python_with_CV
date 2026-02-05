@@ -18,9 +18,9 @@ import plotly.graph_objects as go
 from plotly.offline import plot  
 
 
-metadata_df = pd.read_csv("/Users/sklarjg/Desktop/MICROBIOME/AmericanGutProj/Data/Cleaned_data/AGP_Metadata.csv", index_col = 0)
-file_df = pd.read_csv("/Users/sklarjg/Desktop/MICROBIOME/AmericanGutProj/Data/Raw_Data/AGP_File_Metadata.csv", index_col = 0)
-otufull_df = pd.read_csv("/Users/sklarjg/Desktop/MICROBIOME/AmericanGutProj/Data/Raw_Data/AGP_merged2_s50_rar10k_forR_md5.txt", sep = "\t").T
+metadata_df = pd.read_csv("./Data/Cleaned_data/AGP_Metadata.csv", index_col = 0)
+file_df = pd.read_csv("./Data/Raw_Data/AGP_File_Metadata.csv", index_col = 0)
+otufull_df = pd.read_csv("./Data/Raw_Data/AGP_merged2_s50_rar10k_forR_md5.txt", sep = "\t").T
 #agp_healthy_cohort = pd.read_csv("/Users/sklarjg/Desktop/MICROBIOME/AmericanGutProj/Feature_cohorts/agp_healthy_cohort.csv", index_col = 0)
 
 
