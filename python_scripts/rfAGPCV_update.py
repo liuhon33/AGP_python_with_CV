@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import joblib
 import json
+from pathlib import Path
 
 # 1. Configuration
 otu_file_path = "./Data/Cleaned_data/AGP_Otu_Data.csv"
@@ -25,7 +26,7 @@ otu_index_col = 0
 
 outer_cv_splits = 10
 inner_cv_splits = 5
-random_state_cv = 42 # AI loves this random seed for some reason
+random_state_cv = 42 # AI loves this random seed for some reason, the answer of the universe
 abundance_threshold = 0.0001
 
 n_pcs_to_predict = 10     # How many PCs to use as targets for the RF models
@@ -54,6 +55,64 @@ metadata_df = metadata_df.loc[common_samples]
 otu_df = otu_df.loc[common_samples]
 print(f"Data aligned. Found {len(common_samples)} common samples.")
 print(f"Initial number of OTUs: {otu_df.shape[1]}")
+
+# 2.5 rename data column
+taxa_map_path = Path("./Data/Raw_Data/taxa_md5.xls")
+
+# Load taxa map (xls)
+taxa_df = pd.read_csv(
+    "Data/Raw_Data/taxa_md5.xls",
+    sep="\t",
+    header=0,
+    index_col=0,      # the md5 hash column becomes the index
+    engine="python"   # helps with odd separators / quoting
+)
+
+# Build Family_Genus label
+taxa_df["Family"] = taxa_df["Family"].fillna("UnclassifiedFamily").astype(str).str.strip()
+taxa_df["Genus"]  = taxa_df["Genus"].fillna("UnclassifiedGenus").astype(str).str.strip()
+taxa_df["Family_Genus"] = taxa_df["Family"] + "_" + taxa_df["Genus"]
+
+# Map OTU md5 -> Family_Genus
+mapper = taxa_df["Family_Genus"].to_dict()  # keys are md5 (taxa_df.index)
+
+md5_prefix_len = 8  # 6–8 is usually safe; 3 is risky
+
+def make_unique(names):
+    counts = {}
+    out = []
+    for n in names:
+        k = counts.get(n, 0) + 1
+        counts[n] = k
+        out.append(n if k == 1 else f"{n}__{k}")
+    return out
+
+otu_cols = otu_df.columns.astype(str)
+
+# Family_Genus__<md5prefix>, fallback if unmapped
+new_cols = [
+    f"{mapper.get(c, 'Unmapped') }__{c[:md5_prefix_len]}"
+    for c in otu_cols
+]
+
+otu_df = otu_df.copy()
+otu_df.columns = make_unique(new_cols)
+
+# Quick sanity checks
+print("Example renamed columns:", list(otu_df.columns[:5]))
+print("Any duplicates after rename?", pd.Index(otu_df.columns).duplicated().any())
+
+otu_cols = otu_df.columns.astype(str)
+mapped_labels = pd.Index([mapper.get(c, "Unmapped_" + c) for c in otu_cols])
+
+print(f"[taxa-map] Mapped {(mapped_labels.str.startswith('Unmapped_') == False).sum()}/{len(otu_cols)} OTUs.")
+
+# Rename + collapse (sum counts across OTUs that share same Family_Genus)
+otu_df_labeled = otu_df.copy()
+otu_df_labeled.columns = mapped_labels
+otu_df = otu_df_labeled.groupby(axis=1, level=0).sum()
+
+print(f"[taxa-map] After collapsing: {otu_df.shape[1]} Family_Genus features.")
 
 # Filter OTU Table (KEEP AS-IS for now)
 otu_rel_abund = otu_df.apply(lambda x: x / x.sum(), axis=1)

@@ -15,3 +15,10 @@ __pycache__
 .ipynb_checkpoints
 
 RF_PCA_Trained_Models/
+
+variable_mapping/backup.tsv
+variable_mapping/group_completeness_flags.csv
+variable_mapping/summary_stats.tsv
+variable_mapping/ukb_as_agp_metadata.csv
+variable_mapping/pulled_UKBAGP.tsv
+variable_mapping/pulled_UKBAGP.tsv
