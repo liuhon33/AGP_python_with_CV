@@ -2,7 +2,7 @@
 #SBATCH --nodes=1                  # 1 node
 #SBATCH --ntasks=1                 # 1 task
 #SBATCH --cpus-per-task=24
-#SBATCH --time=4:00:00
+#SBATCH --time=6:00:00
 #SBATCH --job-name=jupyter_notebook
 #SBATCH --output=jupyter_notebook_%j.out
 #SBATCH --error=jupyter_notebook_%j.err
@@ -39,6 +39,7 @@ https://localhost:${port}  (prefix w/ http:// instead if the browser complains t
 # 3. Start jupyter (removed the unrecognized flag)
 source ~/.bash_profile
 cd /scratch/liuhon33/parallel/AGPMicrobiomeHostPredictions
+module load r/4.3.1
 source my_sklearn_env/bin/activate
 
 # Redirect all Jupyter metadata to scratch or temp storage

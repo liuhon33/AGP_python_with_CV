@@ -5,7 +5,7 @@ library(readr)
 library(dplyr)
 
 infile  <- "ukb_as_agp_metadata.csv"
-outfile <- "ukb_as_agp_metadata.filtered_93pct_complete.csv"
+outfile <- "ukb_as_agp_metadata.filtered_90pct_complete.csv"
 
 # 1) Read
 df <- read_csv(infile, show_col_types = FALSE)
@@ -19,8 +19,8 @@ cols_check <- setdiff(names(df), id_cols)
 #    rowMeans(is.na(.)) returns fraction in [0,1]
 missing_frac <- rowMeans(is.na(df[, cols_check, drop = FALSE]))
 
-# 4) Filter: keep rows with <= 7% missing
-df_filt <- df[missing_frac <= 0.07, , drop = FALSE]
+# 4) Filter: keep rows with <= 10% missing
+df_filt <- df[missing_frac <= 0.10, , drop = FALSE]
 
 # 5) Quick report
 cat("Input rows:   ", nrow(df), "\n")

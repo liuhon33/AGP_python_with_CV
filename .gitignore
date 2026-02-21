@@ -22,3 +22,6 @@ variable_mapping/summary_stats.tsv
 variable_mapping/ukb_as_agp_metadata.csv
 variable_mapping/pulled_UKBAGP.tsv
 variable_mapping/pulled_UKBAGP.tsv
+UKB_RF_PCA_Projection/
+variable_mapping/*.csv
+variable_mapping/*.tsv

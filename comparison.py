@@ -1,3 +1,4 @@
+# compare my PC projection model with the regular basic model
 import numpy as np
 import pandas as pd
 

@@ -13,41 +13,40 @@ out_csv <- "group_completeness_flags.csv"
 
 df <- read_csv(infile, show_col_types = FALSE)
 
-# ---------------------------
-# 1) Define your groups (edit freely)
-# ---------------------------
+# 1) Define groups
 groups <- list(
   demo = c("sex", "age_corrected", "bmi", "weight_kg"),
 
   diet = c(
     "fruit_frequency", "vegetable_frequency", "seafood_frequency",
-    "red_meat_frequency", "high_fat_red_meat_frequency",
-    "milk_cheese_frequency", "whole_grain_frequency",
-    "salted_snacks_frequency", "one_liter_of_water_a_day_frequency",
+    "red_meat_frequency", "high_fat_red_meat_frequency"
+  ),
+  diet2 = c(
     "artificial_sweeteners", "prepared_meals_frequency",
     "ready_to_eat_meals_frequency", "probiotic_frequency",
     "whole_eggs"
   ),
+  diet3 = c(
+    "milk_cheese_frequency", "whole_grain_frequency",
+    "salted_snacks_frequency", "one_liter_of_water_a_day_frequency"
+  ),
 
-  alcohol = c("alcohol_frequency", "alcohol_consumption"),
-  smoking = c("smoking_frequency"),
+  alcohol_smoking = c("alcohol_frequency", "alcohol_consumption", "smoking_frequency"),
 
-  cognition = c("fluid_intelligence_score", "mean_match_rt_ms"),
+  cognition = c("fluid_intelligence_score"), #, "mean_match_rt_ms"),
 
   oral_proxy = c("teethbrushing_frequency", "flossing_frequency", "olive_oil"),
 
-  gi = c("ibs", "crohns_disease", "ulcerative_colitis"),
-  dementia = c("dementia_alzheimers", "dementia_vascular", "dementia_other", "dementia_unspecified")
+  gi = c("ibs", "crohns_disease", "ulcerative_colitis")#,
+  # dementia = c("dementia_alzheimers", "dementia_vascular", "dementia_other", "dementia_unspecified")
 )
 
-# ---------------------------
 # 2) Decide what "YES" means for a group
-# ---------------------------
 # STRICT: require all columns present
 mode <- "strict"   # "strict" or "soft"
 
 # SOFT: require >= this fraction of columns present
-min_prop_present <- 0.80
+min_prop_present <- 0.9
 
 make_group_flag <- function(df, cols, mode = "strict", min_prop_present = 0.80) {
   cols2 <- intersect(cols, names(df))
@@ -85,9 +84,8 @@ if ("sample_name" %in% names(df)) {
 
 write_csv(flag_df, out_csv)
 
-# ---------------------------
+
 # 3) Make the UpSet plot
-# ---------------------------
 # Use ComplexUpset if available (prettier + ggplot-based); else fallback to UpSetR.
 group_cols <- names(groups)
 
@@ -146,3 +144,98 @@ if (requireNamespace("ComplexUpset", quietly = TRUE)) {
 cat("Wrote:\n")
 cat(" - Flags CSV: ", out_csv, "\n", sep = "")
 cat(" - UpSet PDF: ", out_pdf, "\n", sep = "")
+
+# ---------------------------
+# 4) Group-level missingness/completion summary + plot
+#    (add this block AFTER you build `flag_df` and `groups`)
+# ---------------------------
+
+# Choose how to score "completion"
+# strict: per-row group completion = 1 only if ALL cols in group present
+# soft:   per-row group completion = fraction present (0..1), then report mean
+completion_mode <- "strict"   # "strict" or "soft"
+min_prop_present <- 0.80      # used only if you later want a binary soft flag
+
+# Per-row completion score for a group
+group_completion_score <- function(df, cols) {
+  cols2 <- intersect(cols, names(df))
+  if (length(cols2) == 0) return(rep(NA_real_, nrow(df)))
+
+  na_mat <- sapply(df[, cols2, drop = FALSE], is.na)  # n x p logical
+  if (!is.matrix(na_mat)) na_mat <- matrix(na_mat, ncol = 1)
+
+  prop_present <- 1 - rowMeans(na_mat)  # fraction non-missing in that group per row
+  return(as.numeric(prop_present))
+}
+
+# Build summary table: for each group
+group_summary <- lapply(names(groups), function(g) {
+  cols2 <- intersect(groups[[g]], names(df))
+  score <- group_completion_score(df, groups[[g]])
+
+  # strict completion per row (all present)
+  strict_flag <- ifelse(is.na(score), NA, score == 1)
+
+  # soft completion per row (>= min_prop_present present)
+  soft_flag <- ifelse(is.na(score), NA, score >= min_prop_present)
+
+  data.frame(
+    group = g,
+    n_cols_defined = length(groups[[g]]),
+    n_cols_found   = length(cols2),
+
+    # average fraction present across rows
+    mean_prop_present = mean(score, na.rm = TRUE),
+    median_prop_present = median(score, na.rm = TRUE),
+
+    # percent of rows fully complete (strict)
+    pct_rows_strict_complete = 100 * mean(strict_flag, na.rm = TRUE),
+
+    # percent of rows >= threshold (soft-as-binary)
+    pct_rows_soft_complete = 100 * mean(soft_flag, na.rm = TRUE),
+
+    stringsAsFactors = FALSE
+  )
+}) %>% bind_rows()
+
+# Pick what you want on the y-axis
+# - strict: % rows fully complete
+# - soft:   mean % columns present (mean_prop_present * 100)
+plot_metric <- if (completion_mode == "strict") {
+  "pct_rows_strict_complete"
+} else {
+  "mean_prop_present"
+}
+
+plot_df <- group_summary %>%
+  mutate(
+    y = if (completion_mode == "strict") pct_rows_strict_complete else mean_prop_present * 100
+  ) %>%
+  arrange(y)
+
+# Save summary table
+out_group_missing_csv <- "group_completion_summary.csv"
+readr::write_csv(group_summary, out_group_missing_csv)
+
+# Plot
+out_group_missing_pdf <- "group_completion_barplot.pdf"
+
+p_missing <- ggplot(plot_df, aes(x = reorder(group, y), y = y)) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    title = "Group-level completion",
+    subtitle = if (completion_mode == "strict") {
+      "Y = % of rows with ALL columns present in group"
+    } else {
+      "Y = average % of columns present within group (per-row, then averaged)"
+    },
+    x = "Group",
+    y = "Percent completion"
+  )
+
+ggsave(out_group_missing_pdf, p_missing, width = 10, height = 6)
+
+cat("Wrote:\n")
+cat(" - Group completion summary CSV: ", out_group_missing_csv, "\n", sep = "")
+cat(" - Group completion barplot PDF: ", out_group_missing_pdf, "\n", sep = "")

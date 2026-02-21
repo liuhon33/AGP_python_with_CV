@@ -1,3 +1,4 @@
+# summarize the column information so it would be easier to hard code the conversion system
 library(tidyverse)
 library(tools)
 

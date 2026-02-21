@@ -1,8 +1,5 @@
-# ============================================================
 # UKB PROJECTION + REGRESSION SCRIPT (UPDATED)
-#
-# What this version guarantees:
-# 1) Loads your saved FINAL RF models + training metadata
+# 1) Loads the saved FINAL RF models + training metadata
 # 2) Builds UKB X with EXACT training columns (missing cols -> NaN)
 # 3) Coerces to numeric (strings -> NaN)
 # 4) Uses the *trained* SimpleImputer inside each saved RF pipeline:
@@ -11,7 +8,6 @@
 #    - If some entries are missing, those entries get AGP-median imputation.
 # 5) Predicts PC_hat for UKB
 # 6) Runs OLS regression: cognition ~ PC_hat (+ optional covariates)
-# ============================================================
 
 import os
 import json
@@ -24,17 +20,16 @@ import statsmodels.api as sm
 # 0) Config
 model_dir = "./RF_PCA_Trained_Models/"  # where you saved final_*.pkl and final_training_metadata.json
 
-ukb_metadata_path = "variable_mapping/ukb_as_agp_metadata.filtered_93pct_complete.csv"
+ukb_metadata_path = "variable_mapping/ukb_as_agp_metadata.filtered_90pct_complete.csv"
 ukb_index_col = "sample_name"  # your file uses sample_name
 
 # Your outcome column(s)
-cognition_col = "fluid_intelligence_score"      # <-- change if needed
-# optional alternative outcome example:
+cognition_col = "fluid_intelligence_score"
 # cognition_col = "mean_match_rt_ms"
 
 # Optional covariates to include in regression (must exist in UKB file)
-# Keep [] if you want cognition ~ PCs only.
-reg_covars = []    # <-- edit as you like, or set to []
+# use [] if no covariates
+reg_covars = []
 
 out_dir = "./UKB_RF_PCA_Projection/"
 os.makedirs(out_dir, exist_ok=True)
@@ -62,6 +57,85 @@ if cognition_col not in ukb_df.columns:
 missing_covars = [c for c in reg_covars if c not in ukb_df.columns]
 if missing_covars:
     raise ValueError(f"Missing regression covariates in UKB dataframe: {missing_covars}")
+
+# ============================================================
+# 2.5) ROW FILTERING BY MISSINGNESS
+# - Decide which columns count toward per-row missingness
+# - Optionally "skip" very sparse columns so they don't nuke N
+# - Enforces outcome + covariates are present for regression
+# ============================================================
+
+# Columns you want to IGNORE in the row-missingness calculation
+# (edit this list and re-run this cell to see N change)
+skip_cols = [
+    "sugar_sweetened_drink_frequency",
+    "free_sugar_scaled_0_5",
+    "artificial_sweeteners",
+    "one_liter_of_water_a_day_frequency",
+    "olive_oil",
+    "prepared_meals_frequency",
+    "ready_to_eat_meals_frequency",
+    "probiotic_frequency",
+    "whole_eggs",
+]
+
+# Keep rows with <= this fraction missing across "cols_check"
+max_missing_frac = 0.10  # 10% missing allowed (i.e., >=90% complete)
+
+def filter_rows_by_missingness(df, *, skip_cols=(), required_cols=(), max_missing_frac=0.10):
+    skip_cols = list(skip_cols)
+    required_cols = list(required_cols)
+
+    # warn if skip columns aren't present (harmless)
+    missing_skip = [c for c in skip_cols if c not in df.columns]
+    if missing_skip:
+        print(f"[WARN] skip_cols not in dataframe (ignored): {missing_skip[:10]}{'...' if len(missing_skip)>10 else ''}")
+
+    # columns that count toward per-row missingness
+    cols_check = [c for c in df.columns if c not in set(skip_cols)]
+    if len(cols_check) == 0:
+        raise ValueError("After applying skip_cols, cols_check is empty. Reduce skip_cols.")
+
+    missing_frac = df[cols_check].isna().mean(axis=1)
+
+    n_in = df.shape[0]
+    mask = missing_frac <= max_missing_frac
+    df_f = df.loc[mask].copy()
+
+    # enforce outcome/covariates present
+    required_present = [c for c in required_cols if c in df_f.columns]
+    df_f = df_f.dropna(subset=required_present)
+
+    n_out = df_f.shape[0]
+
+    report = {
+        "n_in": n_in,
+        "n_out": n_out,
+        "dropped": n_in - n_out,
+        "cols_check_n": len(cols_check),
+        "missing_frac_summary": missing_frac.describe().to_dict()
+    }
+
+    return df_f, report
+
+
+# Decide what MUST be present for Stage 2 regression
+required_for_regression = [cognition_col] + reg_covars
+
+ukb_df, miss_report = filter_rows_by_missingness(
+    ukb_df,
+    skip_cols=skip_cols,
+    required_cols=required_for_regression,
+    max_missing_frac=max_missing_frac
+)
+
+print("\n[ROW FILTER REPORT]")
+print(f"Input rows:   {miss_report['n_in']}")
+print(f"Output rows:  {miss_report['n_out']}")
+print(f"Dropped rows: {miss_report['dropped']}")
+print(f"Cols counted toward missingness: {miss_report['cols_check_n']}")
+print("Missingness fraction summary (before filtering):")
+print(pd.Series(miss_report["missing_frac_summary"]))
 
 # 3) BUILD UKB X MATRIX WITH EXACT TRAINING COLUMNS
 #    - missing columns become NaN (so imputer can handle)
@@ -236,3 +310,165 @@ print(sig_rates_series)
 
 # Optional: save permutation distributions
 # pd.DataFrame({"perm_joint": perm_joint, "perm_minp": perm_minp}).to_csv("perm_null_distributions.csv", index=False)
+
+# ============================================================
+# LOGISTIC REGRESSION ON BINARY OUTCOMES USING PC_hat
+# - Fits: outcome ~ PC1_hat + ... + PCk_hat (+ optional covars)
+# - Provides:
+#   (A) Joint Wald test p-value for all PCs (recommended primary test)
+#   (B) Per-PC coefficients and p-values (secondary / exploratory)
+# - Adds BH-FDR correction for multiple outcomes (and optionally for all PC tests)
+# ============================================================
+
+from statsmodels.stats.multitest import multipletests
+
+# ---- configure your binary outcomes here ----
+binary_outcomes = [
+    "ibs",
+    "crohns_disease",
+    "ulcerative_colitis",
+    "dementia_alzheimers",
+    "dementia_vascular",
+    "dementia_other",
+    "dementia_unspecified"
+]
+
+pc_cols = [c for c in pc_hat.columns if c.endswith("_hat")]  # PC1_hat..PCk_hat
+
+# Optional: include covariates later (you already have reg_covars list)
+# reg_covars = ["age_corrected", "sex", "bmi"]
+
+def joint_wald_pvalue(fit, cols_to_test):
+    """H0: all coefficients of cols_to_test are 0 (joint Wald test)."""
+    param_names = list(fit.params.index)
+    R = np.zeros((len(cols_to_test), len(param_names)))
+    for i, col in enumerate(cols_to_test):
+        if col in param_names:
+            R[i, param_names.index(col)] = 1.0
+    w = fit.wald_test(R)
+    return float(np.asarray(w.pvalue).squeeze())
+
+def fit_logit_with_fallback(y, X):
+    """
+    Try standard Logit; if it fails (separation, singular), fall back to L2-regularized fit.
+    Returns (fit_result, used_regularized: bool)
+    """
+    try:
+        res = sm.Logit(y, X).fit(disp=0, maxiter=200)
+        # robust SE version:
+        res_rob = res.get_robustcov_results(cov_type="HC3")
+        return res_rob, False
+    except Exception as e:
+        # Regularized fallback (stabilizes rare outcomes)
+        # alpha controls strength; start small
+        try:
+            res_reg = sm.Logit(y, X).fit_regularized(method="l1", alpha=0.0, disp=0)  # essentially no penalty
+        except Exception:
+            res_reg = sm.Logit(y, X).fit_regularized(method="l1", alpha=0.1, disp=0)  # mild penalty
+        # fit_regularized doesn't support robust cov in the same way; return as-is
+        return res_reg, True
+
+logit_outcome_rows = []
+logit_pc_rows = []
+
+for outcome in binary_outcomes:
+    if outcome not in ukb_df.columns:
+        print(f"[SKIP] {outcome} not found in ukb_df columns.")
+        continue
+
+    # Build modeling dataframe
+    df_log = pd.concat(
+        [
+            ukb_df[[outcome]].rename(columns={outcome: "y"}),
+            pc_hat[pc_cols],
+            ukb_df[reg_covars] if len(reg_covars) else pd.DataFrame(index=ukb_df.index)
+        ],
+        axis=1
+    ).copy()
+
+    # Coerce numeric
+    for c in ["y"] + pc_cols + list(reg_covars):
+        df_log[c] = pd.to_numeric(df_log[c], errors="coerce")
+
+    df_log = df_log.dropna()
+    if df_log.shape[0] == 0:
+        print(f"[SKIP] {outcome}: no complete rows after dropna.")
+        continue
+
+    y_bin = df_log["y"].astype(int)
+    n = int(len(y_bin))
+    n_cases = int(y_bin.sum())
+    n_controls = n - n_cases
+
+    # Skip degenerate outcomes
+    if n_cases == 0 or n_controls == 0:
+        print(f"[SKIP] {outcome}: degenerate (cases={n_cases}, controls={n_controls}).")
+        continue
+
+    # Design matrix
+    X_list = [df_log[pc_cols]]
+    if len(reg_covars) > 0:
+        X_list.append(df_log[reg_covars])
+    Xmat = pd.concat(X_list, axis=1)
+    Xmat = sm.add_constant(Xmat, has_constant="add")
+
+    # Fit
+    fit_res, used_reg = fit_logit_with_fallback(y_bin, Xmat)
+
+    # Joint PC test (primary)
+    try:
+        p_joint = joint_wald_pvalue(fit_res, pc_cols)
+    except Exception:
+        p_joint = np.nan
+
+    logit_outcome_rows.append({
+        "outcome": outcome,
+        "n": n,
+        "cases": n_cases,
+        "controls": n_controls,
+        "used_regularized_fit": used_reg,
+        "p_joint_all_PCs": p_joint
+    })
+
+    # Per-PC outputs (secondary)
+    for pc in pc_cols:
+        if pc in fit_res.params.index:
+            logit_pc_rows.append({
+                "outcome": outcome,
+                "predictor": pc,
+                "coef_log_odds": float(fit_res.params[pc]),
+                "p_value": float(fit_res.pvalues[pc]) if hasattr(fit_res, "pvalues") else np.nan
+            })
+
+# Convert to DataFrames
+outcome_df = pd.DataFrame(logit_outcome_rows)
+pc_df = pd.DataFrame(logit_pc_rows)
+
+# Multiple-testing correction across outcomes (joint tests)
+if outcome_df.shape[0] > 0:
+    mask = outcome_df["p_joint_all_PCs"].notna()
+    pvals = outcome_df.loc[mask, "p_joint_all_PCs"].values
+    rej, qvals, _, _ = multipletests(pvals, alpha=0.05, method="fdr_bh")
+    outcome_df.loc[mask, "q_joint_all_PCs_BH"] = qvals
+    outcome_df.loc[mask, "reject_FDR_0p05_joint"] = rej
+
+# Optional: BH across ALL per-PC tests (outcome x PC)
+if pc_df.shape[0] > 0 and pc_df["p_value"].notna().any():
+    mask2 = pc_df["p_value"].notna()
+    pvals2 = pc_df.loc[mask2, "p_value"].values
+    rej2, qvals2, _, _ = multipletests(pvals2, alpha=0.05, method="fdr_bh")
+    pc_df.loc[mask2, "q_value_BH"] = qvals2
+    pc_df.loc[mask2, "reject_FDR_0p05"] = rej2
+
+# Save results
+logit_outcome_path = os.path.join(out_dir, "ukb_logistic_outcomes_joint_tests.csv")
+logit_pc_path = os.path.join(out_dir, "ukb_logistic_pc_level_results.csv")
+
+outcome_df.sort_values("p_joint_all_PCs").to_csv(logit_outcome_path, index=False)
+pc_df.to_csv(logit_pc_path, index=False)
+
+print("\n=== Logistic regression (PC_hat) complete ===")
+print("Saved outcome-level joint tests to:", logit_outcome_path)
+print("Saved PC-level results to:", logit_pc_path)
+print("\nTop outcomes by joint p-value:")
+print(outcome_df.sort_values("p_joint_all_PCs").head(10))

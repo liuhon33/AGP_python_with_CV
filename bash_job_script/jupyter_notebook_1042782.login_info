@@ -1,0 +1,13 @@
+
+MacOS or linux terminal command to create your ssh tunnel
+ssh -N -L 9721:tri0524:9721 liuhon33@trillium.alliancecan.ca
+# Windows MobaXterm info
+Forwarded port:same as remote port
+Remote server: tri0524
+Remote port: 9721
+SSH server: trillium.alliancecan.ca
+SSH login: liuhon33
+SSH port: 22
+#Use a Browser on your local machine to go to:
+https://localhost:9721  (prefix w/ http:// instead if the browser complains that secured connection cannot be established)
+
