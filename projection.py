@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[6]:
+
+
 # UKB PROJECTION + REGRESSION SCRIPT (UPDATED)
 # 1) Loads the saved FINAL RF models + training metadata
 # 2) Builds UKB X with EXACT training columns (missing cols -> NaN)
@@ -15,21 +21,20 @@ import joblib
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+from statsmodels.stats.multitest import multipletests
 
 
 # 0) Config
 model_dir = "./RF_PCA_Trained_Models/"  # where you saved final_*.pkl and final_training_metadata.json
-
-ukb_metadata_path = "variable_mapping/ukb_as_agp_metadata.filtered_90pct_complete.csv"
+ukb_metadata_path = "variable_mapping/ukb_as_agp_metadata.csv"
 ukb_index_col = "sample_name"  # your file uses sample_name
 
-# Your outcome column(s)
+# outcome variable
 cognition_col = "fluid_intelligence_score"
 # cognition_col = "mean_match_rt_ms"
 
-# Optional covariates to include in regression (must exist in UKB file)
-# use [] if no covariates
-reg_covars = []
+# Optional covariates to include in regression
+reg_covars = ["age_corrected", "race", "country_of_birth"]
 
 out_dir = "./UKB_RF_PCA_Projection/"
 os.makedirs(out_dir, exist_ok=True)
@@ -49,6 +54,7 @@ print(f"Will predict {n_pcs_to_predict} PCs.")
 
 # 2) LOAD UKB METADATA (AGP-LIKE)
 ukb_df = pd.read_csv(ukb_metadata_path, index_col=ukb_index_col)
+ukb_df["age_corrected"] = pd.to_numeric(ukb_df["age_corrected"], errors="coerce")
 print(f"Loaded UKB-like metadata: {ukb_df.shape[0]} rows, {ukb_df.shape[1]} columns.")
 
 if cognition_col not in ukb_df.columns:
@@ -58,6 +64,37 @@ missing_covars = [c for c in reg_covars if c not in ukb_df.columns]
 if missing_covars:
     raise ValueError(f"Missing regression covariates in UKB dataframe: {missing_covars}")
 
+
+# In[7]:
+
+
+# Build covariates ONCE (consistent across OLS/baseline/permutation/logit)
+
+cov_num = ["age_corrected"]                 # continuous
+cov_cat = ["race", "country_of_birth"]      # categorical
+
+# ensure numeric
+for c in cov_num:
+    if c in ukb_df.columns:
+        ukb_df[c] = pd.to_numeric(ukb_df[c], errors="coerce")
+
+# build cov_df
+cov_df_num = ukb_df[cov_num].apply(pd.to_numeric, errors="coerce")
+cov_df_cat = pd.get_dummies(
+    ukb_df[cov_cat].astype("string").fillna("MISSING"),
+    prefix=cov_cat,
+    drop_first=True,
+    dtype=float
+)
+
+cov_df = pd.concat([cov_df_num, cov_df_cat], axis=1)
+cov_cols = list(cov_df.columns)
+cov_df.head(10)
+
+
+# In[8]:
+
+
 # ============================================================
 # 2.5) ROW FILTERING BY MISSINGNESS
 # - Decide which columns count toward per-row missingness
@@ -65,7 +102,7 @@ if missing_covars:
 # - Enforces outcome + covariates are present for regression
 # ============================================================
 
-# Columns you want to IGNORE in the row-missingness calculation
+# Columns to IGNORE in the row-missingness calculation
 # (edit this list and re-run this cell to see N change)
 skip_cols = [
     "sugar_sweetened_drink_frequency",
@@ -80,13 +117,13 @@ skip_cols = [
 ]
 
 # Keep rows with <= this fraction missing across "cols_check"
-max_missing_frac = 0.10  # 10% missing allowed (i.e., >=90% complete)
+max_missing_frac = 0.0  # 10% missing allowed (i.e., >=90% complete)
 
 def filter_rows_by_missingness(df, *, skip_cols=(), required_cols=(), max_missing_frac=0.10):
     skip_cols = list(skip_cols)
     required_cols = list(required_cols)
 
-    # warn if skip columns aren't present (harmless)
+    # warn if skip columns aren't present
     missing_skip = [c for c in skip_cols if c not in df.columns]
     if missing_skip:
         print(f"[WARN] skip_cols not in dataframe (ignored): {missing_skip[:10]}{'...' if len(missing_skip)>10 else ''}")
@@ -119,8 +156,7 @@ def filter_rows_by_missingness(df, *, skip_cols=(), required_cols=(), max_missin
     return df_f, report
 
 
-# Decide what MUST be present for Stage 2 regression
-required_for_regression = [cognition_col] + reg_covars
+required_for_regression = [cognition_col] + cov_num
 
 ukb_df, miss_report = filter_rows_by_missingness(
     ukb_df,
@@ -137,12 +173,15 @@ print(f"Cols counted toward missingness: {miss_report['cols_check_n']}")
 print("Missingness fraction summary (before filtering):")
 print(pd.Series(miss_report["missing_frac_summary"]))
 
+
+# In[4]:
+
+
 # 3) BUILD UKB X MATRIX WITH EXACT TRAINING COLUMNS
 #    - missing columns become NaN (so imputer can handle)
 #    - strings are coerced to NaN
 
 X_ukb = ukb_df.reindex(columns=train_cols)
-
 # Coerce to numeric: any strings like "United Kingdom" -> NaN
 X_ukb = X_ukb.apply(pd.to_numeric, errors="coerce")
 
@@ -156,7 +195,7 @@ if len(missing_cols) > 0:
 missing_rate = float(np.mean(pd.isna(X_ukb.values)))
 print(f"Overall missing rate in X_ukb (after numeric coercion): {missing_rate*100:.2f}%")
 
-# 4) PREDICT PC_hat FOR UKB
+# 4) PREDICT PC_hat FOR UKB|
 pc_hat = pd.DataFrame(index=ukb_df.index)
 
 for k in range(n_pcs_to_predict):
@@ -169,21 +208,43 @@ pc_hat_path = os.path.join(out_dir, "ukb_predicted_microbiome_pcs.csv")
 pc_hat.to_csv(pc_hat_path)
 print(f"Saved predicted PCs to: {pc_hat_path}")
 
-# 5) REGRESSION: cognition ~ PC_hat 
+
+# In[5]:
+
+
+# ============================================================
+# 5) OLS REGRESSION (HC3): cognition ~ PC_hat + covariates
+# - age_corrected treated as CONTINUOUS
+# - race + country_of_birth treated as CATEGORICAL (one-hot)
+# - uses a single dropna() so sample is consistent
+# ============================================================
+
+# Outcome
 y = pd.to_numeric(ukb_df[cognition_col], errors="coerce")
 
-X_reg = pc_hat.copy()
-if len(reg_covars) > 0:
-    # IMPORTANT: covars might be coded as strings in your file; coerce them too
-    cov_df = ukb_df[reg_covars].apply(pd.to_numeric, errors="coerce")
-    X_reg = pd.concat([X_reg, cov_df], axis=1)
+# Predicted PCs (ensure numeric)
+pc_cols = [c for c in pc_hat.columns if c.endswith("_hat")]
+pc_hat_num = pc_hat[pc_cols].apply(pd.to_numeric, errors="coerce")
 
+# ---- Full design matrix: PCs + covariates ----
+X_reg = pd.concat([pc_hat_num, cov_df], axis=1)
+
+# Add intercept
 X_reg = sm.add_constant(X_reg, has_constant="add")
 
-# Drop missing rows
+# Clean inf / ensure numeric
+X_reg = X_reg.replace([np.inf, -np.inf], np.nan)
+X_reg = X_reg.apply(pd.to_numeric, errors="coerce")
+
+# Single analysis dataframe (locks sample)
 data = pd.concat([y.rename("y"), X_reg], axis=1).dropna()
-y_clean = data["y"]
-X_clean = data.drop(columns=["y"])
+
+print("Rows used in regression:", data.shape[0], "Cols:", data.shape[1])
+if data.shape[0] == 0:
+    raise ValueError("No rows left after dropna. Check missingness in y / PCs / covariates.")
+
+y_clean = data["y"].astype(float)
+X_clean = data.drop(columns=["y"]).astype(float)
 
 fit = sm.OLS(y_clean, X_clean).fit(cov_type="HC3")
 print(fit.summary())
@@ -193,13 +254,58 @@ with open(summary_path, "w") as f:
     f.write(fit.summary().as_text())
 print(f"Saved regression summary to: {summary_path}")
 
-# 6) BASELINE MODEL (covariates only) Skip this for now as I am not putting any covariates for now
-if len(reg_covars) > 0:
-    X_base = ukb_df[reg_covars].apply(pd.to_numeric, errors="coerce")
-    X_base = sm.add_constant(X_base, has_constant="add")
 
-    base_data = pd.concat([y.rename("y"), X_base], axis=1).dropna()
-    fit_base = sm.OLS(base_data["y"], base_data.drop(columns=["y"])).fit(cov_type="HC3")
+# In[ ]:
+
+
+tmp = pd.concat(
+    [ukb_df[[cognition_col]].rename(columns={cognition_col:"y"}),
+     ukb_df[["age_corrected"]]],
+    axis=1
+).apply(pd.to_numeric, errors="coerce").dropna()
+
+fit_age_only = sm.OLS(tmp["y"], sm.add_constant(tmp[["age_corrected"]])).fit(cov_type="HC3")
+print(fit_age_only.summary())
+
+
+# In[ ]:
+
+
+print(ukb_df["age_corrected"].dtype)
+print(ukb_df["age_corrected"].describe())
+print("nunique:", ukb_df["age_corrected"].nunique())
+
+
+# In[ ]:
+
+
+# 6) BASELINE MODEL (covariates only) — handles categorical covariates properly
+if len(reg_covars) > 0:
+    # Build covariate design matrix the SAME way as in the full model
+    cov_df = pd.get_dummies(
+        ukb_df[reg_covars].astype("string").fillna("MISSING"),
+        prefix=reg_covars,
+        drop_first=True,
+        dtype=float
+    )
+
+    # Outcome
+    y_base = pd.to_numeric(ukb_df[cognition_col], errors="coerce")
+
+    # Design
+    X_base = sm.add_constant(cov_df, has_constant="add")
+    X_base = X_base.replace([np.inf, -np.inf], np.nan)
+
+    base_data = pd.concat([y_base.rename("y"), X_base], axis=1).dropna()
+    print("Rows used in BASELINE regression:", base_data.shape[0], "Cols:", base_data.shape[1])
+
+    if base_data.shape[0] == 0:
+        raise ValueError("Baseline model has 0 rows after dropna — check cognition_col missingness.")
+
+    fit_base = sm.OLS(
+        base_data["y"].astype(float),
+        base_data.drop(columns=["y"]).astype(float)
+    ).fit(cov_type="HC3")
 
     print("\nBaseline model (covariates only):")
     print(fit_base.summary())
@@ -209,118 +315,117 @@ if len(reg_covars) > 0:
         f.write(fit_base.summary().as_text())
     print(f"Saved baseline summary to: {base_path}")
 
-print("\nUKB projection + regression complete.")
 
-# negative test
-# NEGATIVE CONTROL: Permute cognition scores (no covariates)
-# - Uses pc_hat DataFrame (PC1_hat..PC10_hat)
-# - Uses existing ukb_df with cognition_col
-# - Repeats OLS on permuted y many times
-# - Reports:
-#   1) empirical p for the JOINT effect of all PCs (Wald test)
-#   2) empirical p for the MIN single-PC p-value (multiple-testing-sensitive)
-#   3) how often each PC is "significant" under permutation (optional)
+# In[ ]:
 
-import numpy as np
-import pandas as pd
-import statsmodels.api as sm
 
-# ---- USER EDITS ----
-cognition_col = "fluid_intelligence_score"   # <-- your column
-B = 2000                                    # permutations (quick: 200-500; better: 2000-10000)
+# ============================================================
+# PERMUTATION TEST (Freedman–Lane): PCs add nothing beyond covariates
+# - Fits baseline: y ~ covariates
+# - Permutes baseline residuals
+# - Re-fits full: y_perm ~ covariates + PC_hat
+# - Tests joint Wald for PC terms + min single-PC p
+# ============================================================
+
+# config
+B = 2000
 seed = 42
+rng = np.random.default_rng(seed)
 
-# ---- Build analysis dataframe once (locks the sample set) ----
-pc_cols = [c for c in pc_hat.columns if c.endswith("_hat")]  # expects PC1_hat..PC10_hat
+pc_cols = [c for c in pc_hat.columns if c.endswith("_hat")]  # PC1_hat..PCk_hat
 
+# ---- Build covariate dummies ONCE (must match your OLS regression encoding) ----
+if len(reg_covars) > 0:
+    cov_df = pd.get_dummies(
+        ukb_df[reg_covars].astype("string").fillna("MISSING"),
+        prefix=reg_covars,
+        drop_first=True,
+        dtype=float
+    )
+else:
+    cov_df = pd.DataFrame(index=ukb_df.index)
+
+# ---- Build one analysis dataframe (locks sample) ----
 df = pd.concat(
-    [ukb_df[[cognition_col]].rename(columns={cognition_col: "y"}),
-     pc_hat[pc_cols]],
+    [
+        ukb_df[[cognition_col]].rename(columns={cognition_col: "y"}),
+        pc_hat[pc_cols].apply(pd.to_numeric, errors="coerce"),
+        cov_df
+    ],
     axis=1
-).copy()
+).replace([np.inf, -np.inf], np.nan)
 
-# Coerce numeric
-for c in ["y"] + pc_cols:
-    df[c] = pd.to_numeric(df[c], errors="coerce")
-
+df["y"] = pd.to_numeric(df["y"], errors="coerce")
 df = df.dropna()
-y = df["y"]
-X = df[pc_cols]
-Xc = sm.add_constant(X, has_constant="add")
 
-def fit_ols_hc3(yvec):
-    return sm.OLS(yvec, Xc).fit(cov_type="HC3")
+y = df["y"].astype(float)
+
+cov_cols = list(cov_df.columns)  # after get_dummies
+X_base = sm.add_constant(df[cov_cols], has_constant="add") if cov_cols else sm.add_constant(pd.DataFrame(index=df.index), has_constant="add")
+X_full = sm.add_constant(df[pc_cols + cov_cols], has_constant="add") if cov_cols else sm.add_constant(df[pc_cols], has_constant="add")
+
+def fit_ols_hc3(yvec, Xmat):
+    return sm.OLS(yvec, Xmat).fit(cov_type="HC3")
 
 def joint_wald_stat(fit, cols_to_test):
     param_names = list(fit.params.index)
     R = np.zeros((len(cols_to_test), len(param_names)))
     for i, col in enumerate(cols_to_test):
         R[i, param_names.index(col)] = 1.0
-    w = fit.wald_test(R)
-    return float(np.asarray(w.statistic).squeeze())
+    w = fit.wald_test(R, scalar=True)
+    return float(w.statistic)
 
-# ---- Observed model ----
-fit_obs = fit_ols_hc3(y)
+# ---- Observed (full) ----
+fit_obs = fit_ols_hc3(y, X_full)
 obs_joint = joint_wald_stat(fit_obs, pc_cols)
 obs_pvals = fit_obs.pvalues[pc_cols].copy()
 obs_minp = float(obs_pvals.min())
 
-print("Observed R2:", float(fit_obs.rsquared))
-print("Observed joint Wald stat (all PCs):", obs_joint)
-print("Observed min single-PC p-value:", obs_minp)
-print("Observed p-values:\n", obs_pvals.sort_values())
+print("Observed R2 (full):", float(fit_obs.rsquared))
+print("Observed joint Wald stat (PCs):", obs_joint)
+print("Observed min single-PC p:", obs_minp)
 
-# ---- Permutation test ----
-rng = np.random.default_rng(seed)
+# ---- Freedman–Lane permutations ----
+# baseline fit: y ~ covariates
+fit_base = fit_ols_hc3(y, X_base)
+yhat = fit_base.fittedvalues
+resid = y - yhat
 
 perm_joint = np.empty(B)
-perm_minp = np.empty(B)
-perm_sig_counts = {c: 0 for c in pc_cols}  # optional: per-PC sig rate under null
+perm_minp  = np.empty(B)
+perm_sig_counts = {c: 0 for c in pc_cols}
 
-y_vals = y.values
+resid_vals = resid.values
 
 for b in range(B):
-    y_perm = rng.permutation(y_vals)
-    fit_b = fit_ols_hc3(y_perm)
+    resid_perm = rng.permutation(resid_vals)
+    y_perm = yhat.values + resid_perm
 
+    fit_b = fit_ols_hc3(y_perm, X_full)
     perm_joint[b] = joint_wald_stat(fit_b, pc_cols)
+
     pvals_b = fit_b.pvalues[pc_cols].values
     perm_minp[b] = float(np.min(pvals_b))
 
-    # optional: count how often each PC is significant at 0.05 under null
     for col, pv in zip(pc_cols, pvals_b):
         if pv < 0.05:
             perm_sig_counts[col] += 1
 
-# Empirical p-values
 p_emp_joint = (1.0 + np.sum(perm_joint >= obs_joint)) / (B + 1.0)
 p_emp_minp  = (1.0 + np.sum(perm_minp <= obs_minp)) / (B + 1.0)
 
-print("\n--- Permutation results (y permuted) ---")
+print("\n--- Permutation results (Freedman–Lane) ---")
 print(f"Permutations: {B}")
-print(f"Empirical p (JOINT effect of PCs): {p_emp_joint:.4g}")
-print(f"Empirical p (MIN single-PC p across PCs): {p_emp_minp:.4g}")
+print(f"Empirical p (JOINT PCs | covariates): {p_emp_joint:.4g}")
+print(f"Empirical p (MIN single-PC p): {p_emp_minp:.4g}")
 
-# Optional: per-PC null significance rates
-sig_rates = {col: perm_sig_counts[col] / B for col in pc_cols}
-sig_rates_series = pd.Series(sig_rates).sort_values(ascending=False)
+sig_rates = pd.Series({col: perm_sig_counts[col] / B for col in pc_cols}).sort_values(ascending=False)
+print("\nNull significance rate per PC at alpha=0.05 (should be ~0.05):")
+print(sig_rates)
 
-print("\nNull significance rate per PC at alpha=0.05 (should be ~0.05 each):")
-print(sig_rates_series)
 
-# Optional: save permutation distributions
-# pd.DataFrame({"perm_joint": perm_joint, "perm_minp": perm_minp}).to_csv("perm_null_distributions.csv", index=False)
+# In[ ]:
 
-# ============================================================
-# LOGISTIC REGRESSION ON BINARY OUTCOMES USING PC_hat
-# - Fits: outcome ~ PC1_hat + ... + PCk_hat (+ optional covars)
-# - Provides:
-#   (A) Joint Wald test p-value for all PCs (recommended primary test)
-#   (B) Per-PC coefficients and p-values (secondary / exploratory)
-# - Adds BH-FDR correction for multiple outcomes (and optionally for all PC tests)
-# ============================================================
-
-from statsmodels.stats.multitest import multipletests
 
 # ---- configure your binary outcomes here ----
 binary_outcomes = [
@@ -333,21 +438,34 @@ binary_outcomes = [
     "dementia_unspecified"
 ]
 
-pc_cols = [c for c in pc_hat.columns if c.endswith("_hat")]  # PC1_hat..PCk_hat
+# --- Precompute predictors once (numeric PCs + encoded covariates) ---
+pc_cols = [c for c in pc_hat.columns if c.endswith("_hat")]
+pc_hat_num = pc_hat[pc_cols].apply(pd.to_numeric, errors="coerce")
+
+if len(reg_covars) > 0:
+    cov_df = pd.get_dummies(
+        ukb_df[reg_covars].astype("string").fillna("MISSING"),
+        prefix=reg_covars,
+        drop_first=True,
+        dtype=float
+    )
+    cov_cols = list(cov_df.columns)
+else:
+    cov_df = pd.DataFrame(index=ukb_df.index)
+    cov_cols = []
 
 # Optional: include covariates later (you already have reg_covars list)
 # reg_covars = ["age_corrected", "sex", "bmi"]
 
 def joint_wald_pvalue(fit, cols_to_test):
-    """H0: all coefficients of cols_to_test are 0 (joint Wald test)."""
     param_names = list(fit.params.index)
     R = np.zeros((len(cols_to_test), len(param_names)))
     for i, col in enumerate(cols_to_test):
         if col in param_names:
             R[i, param_names.index(col)] = 1.0
-    w = fit.wald_test(R)
-    return float(np.asarray(w.pvalue).squeeze())
 
+    w = fit.wald_test(R, scalar=True)   # <- add this
+    return float(w.pvalue)              # <- now already scalar
 def fit_logit_with_fallback(y, X):
     """
     Try standard Logit; if it fails (separation, singular), fall back to L2-regularized fit.
@@ -371,26 +489,47 @@ def fit_logit_with_fallback(y, X):
 logit_outcome_rows = []
 logit_pc_rows = []
 
+logit_outcome_rows = []
+logit_pc_rows = []
+
+def coerce_binary(series):
+    """Return 0/1 int series or None if not binary."""
+    s = pd.to_numeric(series, errors="coerce")
+    s = s.dropna()
+    uniq = sorted(s.unique().tolist())
+    if len(uniq) == 0:
+        return None
+    # accept {0,1} or {1,2} (convert to 0/1)
+    if set(uniq).issubset({0, 1}):
+        return pd.to_numeric(series, errors="coerce").astype(int)
+    if set(uniq).issubset({1, 2}):
+        return (pd.to_numeric(series, errors="coerce") - 1).astype(int)
+    return None
+
 for outcome in binary_outcomes:
     if outcome not in ukb_df.columns:
         print(f"[SKIP] {outcome} not found in ukb_df columns.")
         continue
 
-    # Build modeling dataframe
+    # Build modeling dataframe using precomputed numeric predictors
     df_log = pd.concat(
         [
             ukb_df[[outcome]].rename(columns={outcome: "y"}),
-            pc_hat[pc_cols],
-            ukb_df[reg_covars] if len(reg_covars) else pd.DataFrame(index=ukb_df.index)
+            pc_hat_num,
+            cov_df
         ],
         axis=1
-    ).copy()
+    ).replace([np.inf, -np.inf], np.nan)
 
-    # Coerce numeric
-    for c in ["y"] + pc_cols + list(reg_covars):
-        df_log[c] = pd.to_numeric(df_log[c], errors="coerce")
+    # Coerce y to binary
+    y_bin = coerce_binary(df_log["y"])
+    if y_bin is None:
+        print(f"[SKIP] {outcome}: not a recognized binary coding (expected 0/1 or 1/2).")
+        continue
+    df_log["y"] = y_bin
 
-    df_log = df_log.dropna()
+    # Drop missing rows (now covariates won't be nuked)
+    df_log = df_log.dropna(subset=["y"] + pc_cols + cov_cols)
     if df_log.shape[0] == 0:
         print(f"[SKIP] {outcome}: no complete rows after dropna.")
         continue
@@ -400,22 +539,18 @@ for outcome in binary_outcomes:
     n_cases = int(y_bin.sum())
     n_controls = n - n_cases
 
-    # Skip degenerate outcomes
     if n_cases == 0 or n_controls == 0:
         print(f"[SKIP] {outcome}: degenerate (cases={n_cases}, controls={n_controls}).")
         continue
 
-    # Design matrix
-    X_list = [df_log[pc_cols]]
-    if len(reg_covars) > 0:
-        X_list.append(df_log[reg_covars])
-    Xmat = pd.concat(X_list, axis=1)
+    # Design matrix: PCs + encoded covariates
+    Xmat = df_log[pc_cols + cov_cols].astype(float)
     Xmat = sm.add_constant(Xmat, has_constant="add")
 
     # Fit
     fit_res, used_reg = fit_logit_with_fallback(y_bin, Xmat)
 
-    # Joint PC test (primary)
+    # Joint PC test
     try:
         p_joint = joint_wald_pvalue(fit_res, pc_cols)
     except Exception:
@@ -430,16 +565,16 @@ for outcome in binary_outcomes:
         "p_joint_all_PCs": p_joint
     })
 
-    # Per-PC outputs (secondary)
-    for pc in pc_cols:
-        if pc in fit_res.params.index:
-            logit_pc_rows.append({
-                "outcome": outcome,
-                "predictor": pc,
-                "coef_log_odds": float(fit_res.params[pc]),
-                "p_value": float(fit_res.pvalues[pc]) if hasattr(fit_res, "pvalues") else np.nan
-            })
-
+    # Per-PC outputs
+    if hasattr(fit_res, "params"):
+        for pc in pc_cols:
+            if pc in fit_res.params.index:
+                logit_pc_rows.append({
+                    "outcome": outcome,
+                    "predictor": pc,
+                    "coef_log_odds": float(fit_res.params[pc]),
+                    "p_value": float(fit_res.pvalues[pc]) if hasattr(fit_res, "pvalues") else np.nan
+                })
 # Convert to DataFrames
 outcome_df = pd.DataFrame(logit_outcome_rows)
 pc_df = pd.DataFrame(logit_pc_rows)
@@ -472,3 +607,10 @@ print("Saved outcome-level joint tests to:", logit_outcome_path)
 print("Saved PC-level results to:", logit_pc_path)
 print("\nTop outcomes by joint p-value:")
 print(outcome_df.sort_values("p_joint_all_PCs").head(10))
+
+
+# In[ ]:
+
+
+
+
