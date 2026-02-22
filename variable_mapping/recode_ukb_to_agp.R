@@ -228,7 +228,9 @@ map_race_ukb_to_agp <- function(x) {
 
   out <- rep(NA_character_, length(x))
   out[is.na(x) | x == "" | x == "NA"] <- "Not provided"
-  out[x %in% c("Do not know", "Prefer not to answer")] <- "Unspecified"
+
+  # CHANGE: collapse Unspecified into Other
+  out[x %in% c("Do not know", "Prefer not to answer")] <- "Other"
 
   idx <- is.na(out)
   xs <- tolower(x[idx])
@@ -417,6 +419,7 @@ recode_ukb_to_agp <- function(ukb_df) {
   c_fruit   <- "Fresh fruit intake (FieldID: 1309)"
   c_veg     <- "Cooked vegetable intake (FieldID: 1289)"
   c_fish    <- "Oily fish intake (FieldID: 1329)"
+  c_poultry <- "Poultry intake (FieldID: 1359)"
   c_beef    <- "Beef intake (FieldID: 1369)"
   c_proc    <- "Processed meat intake (FieldID: 1349)"
   c_cheese  <- "Cheese intake (FieldID: 1408)"
@@ -486,6 +489,7 @@ recode_ukb_to_agp <- function(ukb_df) {
   smoke_0_5   <- map_smoking_20116_0_5(get_col(ukb_df, c_smoke))
 
   fish_0_5   <- map_weekly_diet_0_5(get_col(ukb_df, c_fish))
+  poultry_0_5 <- map_weekly_diet_0_5(get_col(ukb_df, c_poultry))
   beef_0_5   <- map_weekly_diet_0_5(get_col(ukb_df, c_beef))
   proc_0_5   <- map_weekly_diet_0_5(get_col(ukb_df, c_proc))
   cheese_0_5 <- map_weekly_diet_0_5(get_col(ukb_df, c_cheese))
@@ -547,6 +551,7 @@ recode_ukb_to_agp <- function(ukb_df) {
     red_meat_frequency = beef_0_5,
     high_fat_red_meat_frequency = proc_0_5,
     milk_cheese_frequency = cheese_0_5,
+    poultry_frequency = poultry_0_5,
 
     milk_substitute_frequency = milk_sub_0_5,
     whole_grain_frequency = wholegrain_0_5,
