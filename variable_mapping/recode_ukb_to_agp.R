@@ -89,6 +89,26 @@ quantile_0_5 <- function(x) {
   return(out)
 }
 
+# Quantile-binning to 1..5 (no special-case for zeros)
+quantile_1_5 <- function(x) {
+  v <- na_numeric_ukb(x, neg_is_na = TRUE)
+
+  out <- rep(NA_integer_, length(v))
+  vv <- v[!is.na(v)]
+
+  if (length(vv) < 50) return(out)
+
+  qs <- quantile(vv, probs = seq(0, 1, 0.2), na.rm = TRUE, type = 2)
+  qs <- unique(qs)
+  if (length(qs) < 2) return(out)
+
+  idx <- which(!is.na(v))
+  out[idx] <- as.integer(cut(v[idx], breaks = qs, include.lowest = TRUE, labels = FALSE))
+  out[idx] <- pmin(pmax(out[idx], 1L), 5L)
+
+  return(out)
+}
+
 # Safe column getter (returns NA vector if missing)
 get_col <- function(df, nm) {
   if (nm %in% names(df)) {
@@ -215,11 +235,18 @@ map_sex_31_agp <- function(x) {
 }
 
 map_country_of_birth_1647 <- function(x) {
-  x <- na_text(x)
+  x <- trimws(as.character(x))
+
+  # treat missing / blank / literal "NA" as Other
+  x[is.na(x) | x == "" | x == "NA"] <- "Other"
+
   out <- x
-  out[x %in% c("England", "Scotland", "Wales", "Northern Ireland")] <- "United Kingdom"
-  out[x == "Republic of Ireland"] <- "Ireland"
-  out[x == "Elsewhere"] <- "Other"
+  out[out %in% c("England", "Scotland", "Wales", "Northern Ireland")] <- "United Kingdom"
+  out[out == "Republic of Ireland"] <- "Ireland"
+  out[out %in% c("elsewhere", "Do not know", "Prefer not to answer")] <- "Other"
+
+  # any remaining NA (if any) -> Other
+  out[is.na(out) | out == "" ] <- "Other"
   return(out)
 }
 
@@ -227,9 +254,11 @@ map_race_ukb_to_agp <- function(x) {
   x <- trimws(as.character(x))
 
   out <- rep(NA_character_, length(x))
-  out[is.na(x) | x == "" | x == "NA"] <- "Not provided"
 
-  # CHANGE: collapse Unspecified into Other
+  # Missing / blank / literal "NA" -> Other
+  out[is.na(x) | x == "" | x == "NA"] <- "Other"
+
+  # Prefer not to answer / Do not know -> Other
   out[x %in% c("Do not know", "Prefer not to answer")] <- "Other"
 
   idx <- is.na(out)
@@ -251,6 +280,7 @@ map_race_ukb_to_agp <- function(x) {
   out[out_idx[hisp]]  <- "Hispanic"
   out[out_idx[other]] <- "Other"
 
+  # Any leftover unmapped values -> Other
   out[is.na(out)] <- "Other"
   return(out)
 }
@@ -445,6 +475,12 @@ recode_ukb_to_agp <- function(ukb_df) {
   c_teeth   <- "Mouth/teeth dental problems (FieldID: 6149)"
   c_oil     <- "Type of fat/oil used in cooking (FieldID: 20090)"
 
+  c_dessert <- "Other dessert intake (FieldID: 102230)"
+  c_b12     <- "Vitamin B12  (FieldID: 26021)"
+  c_vitd    <- "Vitamin D  (FieldID: 26029)"
+  c_bowel   <- "Average number of times bowels opened per day (FieldID: 21044)"
+  c_sleep   <- "Sleep duration (FieldID: 1160)"
+
   c_ibs_date   <- "Date K58 first reported (irritable bowel syndrome) (FieldID: 131638)"
   c_crohns_src <- "Source of report of K50 (crohn's disease [regional enteritis]) (FieldID: 131627)"
   c_uc_date    <- "Date K51 first reported (ulcerative colitis) (FieldID: 131628)"
@@ -469,6 +505,13 @@ recode_ukb_to_agp <- function(ukb_df) {
   yogurt_n <- parse_amount(get_col(ukb_df, c_yogurt))
   eggs_n   <- parse_amount(get_col(ukb_df, c_eggs))
   
+  dessert_n <- parse_amount(get_col(ukb_df, c_dessert))
+
+  b12_n   <- na_numeric_ukb(get_col(ukb_df, c_b12),   neg_is_na = TRUE)
+  vitd_n  <- na_numeric_ukb(get_col(ukb_df, c_vitd),  neg_is_na = TRUE)
+  bowel_n <- na_numeric_ukb(get_col(ukb_df, c_bowel), neg_is_na = TRUE)  # filters -818 etc.
+  sleep_n <- na_numeric_ukb(get_col(ukb_df, c_sleep), neg_is_na = TRUE)
+
   # Normalize numeric -> 0..5
   act_0_5   <- minmax_to_0_5(act_days, lower = 0, upper = 7)
   fruit_0_5 <- minmax_to_0_5(pmin(fruit_n, 10), lower = 0, upper = 10)
@@ -483,6 +526,19 @@ recode_ukb_to_agp <- function(ukb_df) {
 
   sugdrink_0_5 <- quantile_0_5(get_col(ukb_df, c_sugdrink))
   freesug_0_5  <- quantile_0_5(get_col(ukb_df, c_freesug))
+
+  # Dessert: "half", "1", "2", "3+" -> cap at 3 then scale to 0..5
+  dessert_0_5 <- minmax_to_0_5(pmin(dessert_n, 3), lower = 0, upper = 3)
+
+  # Bowel movements per day: cap at 6 and scale to 0..5
+  bowel_0_5 <- minmax_to_0_5(pmin(bowel_n, 6), lower = 0, upper = 6)
+
+  # Sleep duration (hours): cap to [3, 10] then scale to 0..5
+  sleep_0_5 <- minmax_to_0_5(pmin(pmax(sleep_n, 3), 10), lower = 3, upper = 10)
+
+  # Vitamins: convert continuous lab values to ordinal 1..5 via quintiles
+  vitb_1_5 <- quantile_1_5(b12_n)
+  vitd_1_5 <- quantile_1_5(vitd_n)
 
   # Categorical -> 0..5
   alcohol_0_5 <- map_alcohol_1558_0_5(get_col(ukb_df, c_alcohol))
@@ -571,6 +627,15 @@ recode_ukb_to_agp <- function(ukb_df) {
     lactose = lactose_bin,
     appendix_removed = appendix_bin,
 
+    # NEW: dessert proxy (maps to an AGP-style frequency axis)
+    frozen_dessert_frequency = dessert_0_5,
+
+    # NEW: requested names (AGP scale)
+    vitamin_b_supplement_frequency = vitb_1_5,
+    vitamin_d_supplement_frequency = vitd_1_5,
+    bowel_movement_frequency       = bowel_0_5,
+    sleep_duration                 = sleep_0_5,
+
     # NEW AGP-style additions
     teethbrushing_frequency = teeth_0_5,
     flossing_frequency = floss_0_5,
@@ -586,7 +651,7 @@ recode_ukb_to_agp <- function(ukb_df) {
     dementia_alzheimers = f00_bin,
     dementia_vascular   = f01_bin,
     dementia_other      = f02_bin,
-    dementia_unspecified= f03_bin,
+    dementia_unspecified= f03_bin
   )
 
   return(out)
