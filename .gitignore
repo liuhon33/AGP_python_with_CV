@@ -4,6 +4,7 @@
  Feature_Cohorts
 *.err
 *.out
+*.login_info
 *.txt
 *.pdf
 
@@ -15,6 +16,8 @@ __pycache__
 .ipynb_checkpoints
 
 RF_PCA_Trained_Models/
+UKB_RF_PCA_Projection/
+Ridge_OTU_Trained_Models/
 
 variable_mapping/backup.tsv
 variable_mapping/group_completeness_flags.csv
