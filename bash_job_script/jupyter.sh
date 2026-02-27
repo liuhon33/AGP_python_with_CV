@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes=1                  # 1 node
 #SBATCH --ntasks=1                 # 1 task
-#SBATCH --cpus-per-task=24
+#SBATCH --cpus-per-task=48
 #SBATCH --time=6:00:00
 #SBATCH --job-name=jupyter_notebook
 #SBATCH --output=jupyter_notebook_%j.out
