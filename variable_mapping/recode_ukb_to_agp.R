@@ -109,6 +109,47 @@ quantile_1_5 <- function(x) {
   return(out)
 }
 
+recode_ukb_daily_intake_to_agp_0_5 <- function(x, cap_value = 9) {
+  v_raw <- suppressWarnings(as.numeric(trimws(as.character(x))))
+  v <- v_raw
+
+  # UKB special code: -10 = "Less than one"
+  v[v == -10] <- 0
+
+  # Compute median from usable values only
+  v_for_med <- v
+  v_for_med[v_for_med %in% c(-1, -3)] <- NA
+  v_for_med[!is.na(v_for_med) & v_for_med < 0] <- NA
+  v_for_med <- pmin(v_for_med, cap_value)
+
+  med <- stats::median(v_for_med, na.rm = TRUE)
+  if (is.na(med)) med <- NA_real_
+
+  # Impute unknown / prefer-not-to-answer to median
+  v[v %in% c(-1, -3)] <- med
+
+  # Any other negative weird value -> median
+  v[!is.na(v) & v < 0] <- med
+
+  # Cap extreme high values
+  v <- pmin(v, cap_value)
+
+  # Map to AGP-like 0..5 buckets
+  out <- rep(NA_integer_, length(v))
+  ok <- !is.na(v)
+
+  out[ok] <- as.integer(
+    cut(
+      v[ok],
+      breaks = c(-Inf, 1, 2, 3, 4, 5, Inf),
+      labels = 0:5,
+      right = FALSE
+    )
+  )
+
+  out
+}
+
 # Safe column getter (returns NA vector if missing)
 get_col <- function(df, nm) {
   if (nm %in% names(df)) {
@@ -116,6 +157,42 @@ get_col <- function(df, nm) {
   } else {
     return(rep(NA, nrow(df)))
   }
+}
+minmax_to_1_5 <- function(x, lower, upper) {
+  v <- x
+  v <- pmax(v, lower)
+  v <- pmin(v, upper)
+
+  if (upper == lower) {
+    return(rep(NA_integer_, length(v)))
+  }
+
+  s <- round((v - lower) / (upper - lower) * 4 + 1)
+  s[is.na(x)] <- NA_integer_
+  return(as.integer(s))
+}
+
+logcap_to_1_5 <- function(x, cap_q = 0.99) {
+  v <- na_numeric_ukb(x, neg_is_na = TRUE)
+
+  out <- rep(NA_integer_, length(v))
+  vv <- v[!is.na(v)]
+
+  if (length(vv) < 50) return(out)
+
+  # cap extreme right tail
+  cap <- as.numeric(stats::quantile(vv, probs = cap_q, na.rm = TRUE, type = 2))
+
+  # compress skew
+  z <- log1p(pmin(v, cap))
+
+  out <- minmax_to_1_5(
+    z,
+    lower = min(z, na.rm = TRUE),
+    upper = max(z, na.rm = TRUE)
+  )
+
+  return(out)
 }
 
 # Split multiselect arrays (UKB sometimes stored like "A; B; C" or "A | B | C")
@@ -342,6 +419,57 @@ map_dental_to_flossing_0_5 <- function(x) {
   return(as.integer(floss))
 }
 
+map_other_exercise_3637_to_0_5 <- function(x, unknown_to_median = TRUE) {
+  xs <- trimws(as.character(x))
+
+  out <- rep(NA_integer_, length(xs))
+
+  # Keep true missing as NA
+  is_missing <- is.na(x) | xs %in% c("", "NA", "NaN", "NULL", "null")
+
+  # Map valid labeled categories
+  recode <- c(
+    "Once in the last 4 weeks"      = 1L,
+    "2-3 times in the last 4 weeks" = 1L,
+    "Once a week"                   = 2L,
+    "2-3 times a week"              = 3L,
+    "4-5 times a week"              = 4L,
+    "Every day"                     = 5L
+  )
+
+  good <- !is_missing & xs %in% names(recode)
+  out[good] <- recode[xs[good]]
+
+  # Unknown / prefer-not
+  is_unknown <- xs %in% c("Do not know", "Prefer not to answer", "Prefer not to answer ")
+
+  if (unknown_to_median) {
+    valid_scores <- out[good]
+    med <- stats::median(valid_scores, na.rm = TRUE)
+    if (!is.na(med)) {
+      out[is_unknown] <- as.integer(round(med))
+    }
+  } else {
+    out[is_unknown] <- NA_integer_
+  }
+
+  # Warn on unexpected non-missing values
+  known_values <- c(
+    names(recode),
+    "Do not know", "Prefer not to answer", "Prefer not to answer ",
+    "", "NA", "NaN", "NULL", "null"
+  )
+  bad <- setdiff(unique(xs[!is_missing]), known_values)
+  if (length(bad) > 0) {
+    warning(sprintf(
+      "Unmapped values in other exercise 3637: %s",
+      paste(bad, collapse = " | ")
+    ))
+  }
+
+  out
+}
+
 # Cooking fat/oil (20090) -> olive_oil (0..5)
 # Multiselect: take the MAX score (best oil used).
 map_cookingfat_to_oliveoil_0_5 <- function(x) {
@@ -445,7 +573,7 @@ recode_ukb_to_agp <- function(ukb_df) {
   # Source columns
   c_alcohol <- "Alcohol intake frequency. (FieldID: 1558)"
   c_smoke   <- "Smoking status (FieldID: 20116)"
-  c_actdays <- "Number of days/week of moderate physical activity 10+ minutes (FieldID: 884)"
+  c_actdays <- "Frequency of other exercises in last 4 weeks (FieldID: 3637)"
   c_fruit   <- "Fresh fruit intake (FieldID: 1309)"
   c_veg     <- "Cooked vegetable intake (FieldID: 1289)"
   c_fish    <- "Oily fish intake (FieldID: 1329)"
@@ -492,9 +620,7 @@ recode_ukb_to_agp <- function(ukb_df) {
 
 
   # Extract + convert numeric raw
-  act_days <- na_numeric_ukb(get_col(ukb_df, c_actdays), neg_is_na = TRUE)
-  fruit_n  <- na_numeric_ukb(get_col(ukb_df, c_fruit),   neg_is_na = TRUE)
-  veg_n    <- na_numeric_ukb(get_col(ukb_df, c_veg),     neg_is_na = TRUE)
+  act_raw <- get_col(ukb_df, c_actdays)
   age_n    <- na_numeric_ukb(get_col(ukb_df, c_age),     neg_is_na = TRUE)
   bmi_n    <- na_numeric_ukb(get_col(ukb_df, c_bmi),     neg_is_na = TRUE)
   wt_n     <- na_numeric_ukb(get_col(ukb_df, c_weight),  neg_is_na = TRUE)
@@ -513,9 +639,12 @@ recode_ukb_to_agp <- function(ukb_df) {
   sleep_n <- na_numeric_ukb(get_col(ukb_df, c_sleep), neg_is_na = TRUE)
 
   # Normalize numeric -> 0..5
-  act_0_5   <- minmax_to_0_5(act_days, lower = 0, upper = 7)
-  fruit_0_5 <- minmax_to_0_5(pmin(fruit_n, 10), lower = 0, upper = 10)
-  veg_0_5   <- minmax_to_0_5(pmin(veg_n, 10),   lower = 0, upper = 10)
+  act_0_5 <- map_other_exercise_3637_to_0_5(
+    act_raw,
+    unknown_to_median = TRUE
+  )
+  fruit_0_5 <- recode_ukb_daily_intake_to_agp_0_5(get_col(ukb_df, c_fruit), cap_value = 7)
+  veg_0_5   <- recode_ukb_daily_intake_to_agp_0_5(get_col(ukb_df, c_veg),   cap_value = 9)
 
   water_0_5 <- minmax_to_0_5(pmin(water_n, 6), lower = 0, upper = 6)
   lcd_0_5   <- minmax_to_0_5(pmin(lcd_n, 6),   lower = 0, upper = 6)
@@ -537,8 +666,8 @@ recode_ukb_to_agp <- function(ukb_df) {
   sleep_0_5 <- minmax_to_0_5(pmin(pmax(sleep_n, 3), 10), lower = 3, upper = 10)
 
   # Vitamins: convert continuous lab values to ordinal 1..5 via quintiles
-  vitb_1_5 <- quantile_1_5(b12_n)
-  vitd_1_5 <- quantile_1_5(vitd_n)
+  vitb_1_5 <- logcap_to_1_5(b12_n, cap_q = 0.99)
+  vitd_1_5 <- logcap_to_1_5(vitd_n, cap_q = 0.99)
 
   # Categorical -> 0..5
   alcohol_0_5 <- map_alcohol_1558_0_5(get_col(ukb_df, c_alcohol))
