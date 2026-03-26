@@ -206,6 +206,61 @@ split_multiselect <- function(s) {
   return(out)
 }
 
+map_qualifications_6138_to_highest <- function(x) {
+  x <- trimws(as.character(x))
+  out <- rep(NA_character_, length(x))
+
+  for (i in seq_along(x)) {
+    s <- x[i]
+
+    if (is.na(s) || s == "" || s %in% c("NA", "NaN", "NULL", "null")) {
+      out[i] <- NA_character_
+      next
+    }
+
+    items <- split_multiselect(s)
+
+    if (length(items) == 0) {
+      out[i] <- NA_character_
+      next
+    }
+
+    # Explicit unknowns -> missing
+    if (any(items %in% c("Prefer not to answer", "Do not know"))) {
+      out[i] <- NA_character_
+      next
+    }
+
+    # Remove "None of the above" if other real qualifications are present
+    non_none <- items[!items %in% c("None of the above")]
+
+    if (length(non_none) == 0) {
+      out[i] <- "None"
+      next
+    }
+
+    # Highest-attainment hierarchy
+    if ("College or University degree" %in% non_none) {
+      out[i] <- "Degree"
+    } else if (any(non_none %in% c(
+      "A levels/AS levels or equivalent",
+      "NVQ or HND or HNC or equivalent",
+      "Other professional qualifications eg: nursing, teaching"
+    ))) {
+      out[i] <- "Alevel_vocational_professional"
+    } else if (any(non_none %in% c(
+      "O levels/GCSEs or equivalent",
+      "CSEs or equivalent"
+    ))) {
+      out[i] <- "Secondary"
+    } else {
+      out[i] <- NA_character_
+    }
+  }
+
+  return(out)
+}
+
 date_present_0_1 <- function(x, sentinel_min = "1902-02-02") {
   # UKB "Date first reported" often uses a very early sentinel date; treat <= sentinel as "no disease"
   s <- trimws(as.character(x))
@@ -582,7 +637,7 @@ recode_ukb_to_agp <- function(ukb_df) {
   c_proc    <- "Processed meat intake (FieldID: 1349)"
   c_cheese  <- "Cheese intake (FieldID: 1408)"
   c_milk    <- "Milk type used (FieldID: 1418)"
-  c_bread   <- "Bread type (FieldID: 1448)"
+  c_cereal  <- "Cereal intake (FieldID: 1458)"
   c_salt    <- "Salt added to food (FieldID: 1478)"
   c_water   <- "Drinking water intake (FieldID: 100150)"
   c_lcd     <- "Low calorie drink intake (FieldID: 100160)"
@@ -617,6 +672,8 @@ recode_ukb_to_agp <- function(ukb_df) {
   c_f01_date <- "Date F01 first reported (vascular dementia) (FieldID: 130838)"
   c_f02_date <- "Date F02 first reported (dementia in other diseases classified elsewhere) (FieldID: 130840)"
   c_f03_date <- "Date F03 first reported (unspecified dementia) (FieldID: 130842)"
+
+  c_qual <- "Qualifications (FieldID: 6138)"
 
 
   # Extract + convert numeric raw
@@ -680,7 +737,10 @@ recode_ukb_to_agp <- function(ukb_df) {
   cheese_0_5 <- map_weekly_diet_0_5(get_col(ukb_df, c_cheese))
 
   milk_sub_0_5   <- map_milk_1418_substitute_0_5(get_col(ukb_df, c_milk))
-  wholegrain_0_5 <- map_bread_1448_wholegrain_0_5(get_col(ukb_df, c_bread))
+  cereal_0_5 <- recode_ukb_daily_intake_to_agp_0_5(
+  get_col(ukb_df, c_cereal),
+  cap_value = 14
+)
   salt_0_5       <- map_salt_1478_0_5(get_col(ukb_df, c_salt))
 
   # Binary proxies
@@ -718,6 +778,7 @@ recode_ukb_to_agp <- function(ukb_df) {
     race = map_race_ukb_to_agp(get_col(ukb_df, c_race)),
     sex = map_sex_31_agp(get_col(ukb_df, c_sex)),
     country_of_birth = map_country_of_birth_1647(get_col(ukb_df, c_cob)),
+    highest_education = map_qualifications_6138_to_highest(get_col(ukb_df, c_qual)),
 
     age_corrected = age_n,
     bmi = bmi_n,
@@ -739,7 +800,7 @@ recode_ukb_to_agp <- function(ukb_df) {
     poultry_frequency = poultry_0_5,
 
     milk_substitute_frequency = milk_sub_0_5,
-    whole_grain_frequency = wholegrain_0_5,
+    whole_grain_frequency = cereal_0_5,
     salted_snacks_frequency = salt_0_5,
 
     one_liter_of_water_a_day_frequency = water_0_5,

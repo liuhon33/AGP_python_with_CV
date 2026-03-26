@@ -19,4 +19,4 @@ source ./my_sklearn_env/bin/activate
 
 # Execute the notebook
 # This creates 'RF_PCA_out.ipynb' with all cells populated
-jupyter nbconvert --to notebook --execute RF_PCA.ipynb --output RF_PCA_out.ipynb
+jupyter nbconvert --to notebook --execute RF_PCA.ipynb --output RF_PCA.ipynb
