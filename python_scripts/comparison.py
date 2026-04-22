@@ -1,6 +1,7 @@
 # compare my PC projection model with the regular basic model
 import numpy as np
 import pandas as pd
+import os
 
 from sklearn.model_selection import KFold
 from sklearn.pipeline import Pipeline
@@ -13,6 +14,7 @@ from sklearn.ensemble import RandomForestRegressor
 # ----------------------------
 # CONFIG
 # ----------------------------
+os.chdir('/scratch/liuhon33/parallel/AGPMicrobiomeHostPredictions')
 ukb_metadata_path = "variable_mapping/ukb_as_agp_metadata.filtered_93pct_complete.csv"
 ukb_index_col = "sample_name"
 

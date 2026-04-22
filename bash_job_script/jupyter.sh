@@ -2,7 +2,7 @@
 #SBATCH --nodes=1                  # 1 node
 #SBATCH --ntasks=1                 # 1 task
 #SBATCH --cpus-per-task=48
-#SBATCH --time=1:00:00
+#SBATCH --time=8:00:00
 #SBATCH --job-name=jupyter_notebook
 #SBATCH --output=jupyter_notebook_%j.out
 #SBATCH --error=jupyter_notebook_%j.err
